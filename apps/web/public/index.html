@@ -3,17 +3,104 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';" />
-  <title>MC-AI-ForgeLab</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <title>MC-AI-ForgeLab · Workbench</title>
   <script src="/vendor/tailwindcss.js"></script>
   <script src="/vendor/react.production.min.js"></script>
   <script src="/vendor/react-dom.production.min.js"></script>
   <script src="/vendor/babel.min.js"></script>
-  <script>tailwind.config = { darkMode: 'class' }</script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bg:       '#0B0F14',
+            surface:  '#111820',
+            elevated: '#17212B',
+            border:   '#263241',
+            tx1:      '#E6EDF3',
+            tx2:      '#8B949E',
+            tx3:      '#5C6773',
+            mc:       '#4ADE80',
+            blue:     '#60A5FA',
+            warn:     '#FBBF24',
+            danger:   '#F87171',
+          },
+          fontFamily: {
+            sans: ['system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+          },
+          fontSize: {
+            '2xs': '11px',
+          },
+        },
+      },
+    };
+    window.MCFL = window.MCFL || {};
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body { background: #0B0F14; color: #E6EDF3; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-feature-settings: "cv11", "ss01"; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0B0F14; }
+    ::-webkit-scrollbar-thumb { background: #263241; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #34465A; }
+    .mcfl-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-variant-ligatures: none; }
+    .mcfl-log { background: #060A0E; }
+    .mcfl-log-line { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.55; white-space: pre; }
+    .mcfl-log-line.err { color: #F87171; }
+    .mcfl-log-line.warn { color: #FBBF24; }
+    .mcfl-log-line.ok { color: #4ADE80; }
+    .mcfl-log-line.muted { color: #5C6773; }
+    .mcfl-grid-bg {
+      background-image:
+        linear-gradient(to right, rgba(38,50,65,0.25) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(38,50,65,0.25) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    #mcfl-boot { position: fixed; inset: 0; background: #0B0F14; display: flex; align-items: center; justify-content: center; z-index: 9999; transition: opacity .25s ease; }
+    #mcfl-boot.hide { opacity: 0; pointer-events: none; }
+    #mcfl-boot .box { display: flex; gap: 6px; }
+    #mcfl-boot .box span { display: block; width: 8px; height: 8px; background: #4ADE80; opacity: .35; animation: mcfl-pulse 1.2s ease-in-out infinite; }
+    #mcfl-boot .box span:nth-child(2) { animation-delay: .15s; }
+    #mcfl-boot .box span:nth-child(3) { animation-delay: .3s; }
+    @keyframes mcfl-pulse { 0%,100% { opacity: .25; } 50% { opacity: 1; } }
+  </style>
 </head>
-<body class="bg-gray-950 text-gray-100 min-h-screen dark">
+<body class="dark bg-bg text-tx1 antialiased">
+  <div id="mcfl-boot"><div class="box"><span></span><span></span><span></span></div></div>
   <div id="root"></div>
+
+  <!-- Order matters: libs → primitives → composites → pages → app entry -->
+  <script type="text/babel" src="/ui/lib/i18n.js"></script>
+  <script type="text/babel" src="/ui/lib/api.js"></script>
+  <script type="text/babel" src="/ui/lib/cx.js"></script>
+  <script type="text/babel" src="/ui/lib/icons.jsx"></script>
+
+  <script type="text/babel" src="/ui/components/StatusBadge.jsx"></script>
+  <script type="text/babel" src="/ui/components/MetricCard.jsx"></script>
+  <script type="text/babel" src="/ui/components/EmptyState.jsx"></script>
+  <script type="text/babel" src="/ui/components/PageHeader.jsx"></script>
+  <script type="text/babel" src="/ui/components/ProjectCard.jsx"></script>
+  <script type="text/babel" src="/ui/components/ArtifactTable.jsx"></script>
+  <script type="text/babel" src="/ui/components/WorkflowStepCard.jsx"></script>
+  <script type="text/babel" src="/ui/components/BuildLogPanel.jsx"></script>
+  <script type="text/babel" src="/ui/components/PromptComposer.jsx"></script>
+  <script type="text/babel" src="/ui/components/Sidebar.jsx"></script>
+  <script type="text/babel" src="/ui/components/Topbar.jsx"></script>
+  <script type="text/babel" src="/ui/components/AppShell.jsx"></script>
+
+  <script type="text/babel" src="/ui/pages/Dashboard.jsx"></script>
+  <script type="text/babel" src="/ui/pages/Workspace.jsx"></script>
+  <script type="text/babel" src="/ui/pages/Projects.jsx"></script>
+  <script type="text/babel" src="/ui/pages/Workflows.jsx"></script>
+  <script type="text/babel" src="/ui/pages/Builds.jsx"></script>
+  <script type="text/babel" src="/ui/pages/Artifacts.jsx"></script>
+  <script type="text/babel" src="/ui/pages/Toolchains.jsx"></script>
+  <script type="text/babel" src="/ui/pages/Settings.jsx"></script>
+
   <script type="text/babel" src="/ui/app.jsx"></script>
 </body>
 </html>
-
