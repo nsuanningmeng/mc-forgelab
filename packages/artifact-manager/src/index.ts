@@ -1,12 +1,15 @@
-/**
- * @mc-forgelab/artifact-manager — 阶段 6 实施
- *
- * 产物类型: jar / zip / source / log / manifest
- * 下载接口必须：流式、Content-Disposition、Content-Type、路径校验、防穿越
- * 限制只能下载 workspace/artifacts 与 project dist 允许区
- */
+import { createHash } from "node:crypto";
+import { createReadStream, createWriteStream, mkdirSync, statSync, existsSync, rmSync, readdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { pipeline } from "node:stream/promises";
+import { createGzip } from "node:zlib";
+import { resolveInsideBase } from "@mc-forgelab/file-operation";
+import { AppError, ErrorCode } from "@mc-forgelab/app-error";
+import type { Storage } from "@mc-forgelab/storage";
+import type { BuildRecord } from "@mc-forgelab/build-orchestrator";
 
-export type ArtifactType = "jar" | "zip" | "source" | "log" | "manifest";
+export type ArtifactType = "jar" | "source" | "log" | "manifest";
 
 export interface ArtifactRecord {
   readonly artifactId: string;
@@ -21,56 +24,145 @@ export interface ArtifactRecord {
   readonly minecraftVersion: string;
   readonly javaVersion: number;
   readonly createdAt: string;
+  readonly expiresAt: string;
   readonly downloadable: boolean;
 }
 
-export interface ArtifactManifest {
-  readonly schemaVersion: 1;
+export interface CreateArtifactsInput {
   readonly projectId: string;
   readonly projectName: string;
+  readonly build: BuildRecord;
+  readonly workspaceRoot: string;
+  readonly projectPath: string;
   readonly targetId: string;
   readonly minecraftVersion: string;
   readonly javaVersion: number;
-  readonly buildId: string;
-  readonly builtAt: string;
-  readonly outputs: ReadonlyArray<{
-    readonly fileName: string;
-    readonly type: ArtifactType;
-    readonly sha256: string;
-    readonly sizeBytes: number;
-  }>;
-  readonly compatibilityWarnings: ReadonlyArray<{
-    readonly code: string;
-    readonly level: "info" | "warning" | "error";
-    readonly messageZh: string;
-    readonly messageEn: string;
-  }>;
+  readonly retentionDays?: number;
 }
 
-export interface ArtifactManager {
-  list(projectId: string): Promise<ArtifactRecord[]>;
-  get(artifactId: string): Promise<ArtifactRecord>;
-  delete(artifactId: string): Promise<void>;
-  openDownloadStream(artifactId: string): Promise<NodeJS.ReadableStream>;
-  packSource(projectId: string): Promise<ArtifactRecord>;
+async function sha256File(filePath: string): Promise<string> {
+  const hash = createHash("sha256");
+  await pipeline(createReadStream(filePath), hash);
+  return hash.digest("hex");
 }
 
-export function createArtifactManager(): ArtifactManager {
+function artifactsRoot(workspaceRoot: string, projectId: string, buildId: string): string {
+  return join(workspaceRoot, "artifacts", projectId, buildId);
+}
+
+function rowToRecord(row: Record<string, unknown>): ArtifactRecord {
   return {
-    async list() {
-      throw new Error("artifact-manager: not implemented (stage 6)");
+    artifactId: row.id as string,
+    projectId: row.project_id as string,
+    buildId: row.build_id as string,
+    fileName: row.file_name as string,
+    filePath: row.file_path as string,
+    fileSize: row.file_size as number,
+    sha256: row.sha256 as string,
+    type: row.type as ArtifactType,
+    targetId: row.target_id as string,
+    minecraftVersion: row.minecraft_version as string,
+    javaVersion: row.java_version as number,
+    createdAt: row.created_at as string,
+    expiresAt: row.expires_at as string,
+    downloadable: (row.downloadable as number) === 1,
+  };
+}
+
+export function createArtifactManager(storage: Storage) {
+  return {
+    async createForSuccessfulBuild(input: CreateArtifactsInput): Promise<ArtifactRecord[]> {
+      const { projectId, projectName, build, workspaceRoot, projectPath, targetId, minecraftVersion, javaVersion } = input;
+      const outDir = artifactsRoot(workspaceRoot, projectId, build.buildId);
+      mkdirSync(outDir, { recursive: true });
+
+      const records: ArtifactRecord[] = [];
+      const now = new Date().toISOString();
+      const days = input.retentionDays ?? 30;
+      const expiresAt = new Date(Date.now() + days * 86400_000).toISOString();
+
+      const save = async (src: string, type: ArtifactType, destName: string) => {
+        const dest = join(outDir, destName);
+        await pipeline(createReadStream(src), createWriteStream(dest));
+        const sha = await sha256File(dest);
+        const size = statSync(dest).size;
+        const id = randomUUID();
+        storage.backend.run(
+          "INSERT INTO artifacts (id, project_id, build_id, file_name, file_path, file_size, sha256, type, target_id, minecraft_version, java_version, created_at, expires_at, downloadable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          [id, projectId, build.buildId, destName, dest, size, sha, type, targetId, minecraftVersion, javaVersion, now, expiresAt, 1]
+        );
+        records.push(rowToRecord(storage.backend.get("SELECT * FROM artifacts WHERE id = ?", [id])!));
+      };
+
+      // jar: find in build/libs/
+      const libsDir = join(projectPath, "build", "libs");
+      if (existsSync(libsDir)) {
+        const jars = readdirSync(libsDir).filter((f) => f.endsWith(".jar") && !f.endsWith("-sources.jar"));
+        for (const jar of jars) await save(join(libsDir, jar), "jar", jar);
+      }
+
+      // build.log
+      if (build.logPath && existsSync(build.logPath)) {
+        await save(build.logPath, "log", "build.log");
+      }
+
+      // manifest.json
+      const manifestPath = join(outDir, "manifest.json");
+      const manifest = { schemaVersion: 1, projectId, projectName, targetId, minecraftVersion, javaVersion, buildId: build.buildId, builtAt: now, artifacts: records.map((r) => ({ fileName: r.fileName, type: r.type, sha256: r.sha256, sizeBytes: r.fileSize })) };
+      writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+      const mSha = await sha256File(manifestPath);
+      const mSize = statSync(manifestPath).size;
+      const mId = randomUUID();
+      storage.backend.run(
+        "INSERT INTO artifacts (id, project_id, build_id, file_name, file_path, file_size, sha256, type, target_id, minecraft_version, java_version, created_at, expires_at, downloadable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [mId, projectId, build.buildId, "manifest.json", manifestPath, mSize, mSha, "manifest", targetId, minecraftVersion, javaVersion, now, expiresAt, 1]
+      );
+      records.push(rowToRecord(storage.backend.get("SELECT * FROM artifacts WHERE id = ?", [mId])!));
+
+      return records;
     },
-    async get() {
-      throw new Error("artifact-manager: not implemented (stage 6)");
+
+    async list(projectId: string): Promise<ArtifactRecord[]> {
+      return storage.backend.all<Record<string, unknown>>(
+        "SELECT * FROM artifacts WHERE project_id = ? ORDER BY created_at DESC", [projectId]
+      ).map(rowToRecord);
     },
-    async delete() {
-      throw new Error("artifact-manager: not implemented (stage 6)");
+
+    async get(artifactId: string): Promise<ArtifactRecord> {
+      const row = storage.backend.get<Record<string, unknown>>("SELECT * FROM artifacts WHERE id = ?", [artifactId]);
+      if (!row) throw new AppError(ErrorCode.ARTIFACT_NOT_FOUND, { details: { artifactId } });
+      return rowToRecord(row);
     },
-    async openDownloadStream() {
-      throw new Error("artifact-manager: not implemented (stage 6)");
+
+    async openDownload(artifactId: string, workspaceRoot: string) {
+      const record = await this.get(artifactId);
+      if (!record.downloadable) throw new AppError(ErrorCode.ARTIFACT_NOT_FOUND, { details: { artifactId, reason: "not downloadable" } });
+      // Security: re-resolve path inside workspace/artifacts
+      const artifactsBase = join(workspaceRoot, "artifacts");
+      resolveInsideBase(artifactsBase, record.filePath.replace(artifactsBase, "").replace(/^[/\\]/, "") || ".");
+      if (!existsSync(record.filePath)) throw new AppError(ErrorCode.ARTIFACT_NOT_FOUND, { details: { artifactId, reason: "file missing" } });
+      const stat = statSync(record.filePath);
+      const ext = record.fileName.split(".").pop() ?? "";
+      const contentType = ext === "jar" ? "application/java-archive" : ext === "json" ? "application/json" : ext === "log" ? "text/plain" : "application/octet-stream";
+      return { record, stream: createReadStream(record.filePath), contentType, contentLength: stat.size, contentDisposition: `attachment; filename="${record.fileName}"`, sha256: record.sha256 };
     },
-    async packSource() {
-      throw new Error("artifact-manager: not implemented (stage 6)");
-    }
+
+    async delete(artifactId: string): Promise<void> {
+      const record = await this.get(artifactId);
+      if (existsSync(record.filePath)) rmSync(record.filePath);
+      storage.backend.run("DELETE FROM artifacts WHERE id = ?", [artifactId]);
+    },
+
+    async pruneExpired(workspaceRoot: string, maxAgeDays = 30): Promise<{ deleted: number }> {
+      const cutoff = new Date(Date.now() - maxAgeDays * 86400_000).toISOString();
+      const expired = storage.backend.all<Record<string, unknown>>(
+        "SELECT * FROM artifacts WHERE created_at < ?", [cutoff]
+      ).map(rowToRecord);
+      for (const r of expired) {
+        if (existsSync(r.filePath)) rmSync(r.filePath);
+        storage.backend.run("DELETE FROM artifacts WHERE id = ?", [r.artifactId]);
+      }
+      return { deleted: expired.length };
+    },
   };
 }

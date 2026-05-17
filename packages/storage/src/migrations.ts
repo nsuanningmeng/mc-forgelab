@@ -123,3 +123,33 @@ export function runMigrations(backend: StorageBackend, migrations: ReadonlyArray
     }
   }
 }
+
+export const STAGE6_MIGRATIONS: ReadonlyArray<Migration> = [
+  {
+    id: "0006_artifacts_metadata",
+    apply(backend) {
+      backend.exec(`
+        CREATE TABLE IF NOT EXISTS artifacts_v2 (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          build_id TEXT NOT NULL,
+          file_name TEXT NOT NULL,
+          file_path TEXT NOT NULL,
+          file_size INTEGER NOT NULL,
+          sha256 TEXT NOT NULL,
+          type TEXT NOT NULL,
+          target_id TEXT NOT NULL DEFAULT '',
+          minecraft_version TEXT NOT NULL DEFAULT '',
+          java_version INTEGER NOT NULL DEFAULT 17,
+          created_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL,
+          downloadable INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE INDEX IF NOT EXISTS idx_artifacts_v2_project ON artifacts_v2(project_id);
+        CREATE INDEX IF NOT EXISTS idx_artifacts_v2_build ON artifacts_v2(build_id);
+        CREATE INDEX IF NOT EXISTS idx_artifacts_v2_expires ON artifacts_v2(expires_at);
+      `);
+    }
+  }
+];
+
