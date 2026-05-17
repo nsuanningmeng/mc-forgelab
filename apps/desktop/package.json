@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsc -b && electron .",
     "build": "tsc -b",
+    "dist": "tsc -b && electron-builder",
     "typecheck": "tsc -b",
     "test": "echo \"no tests\" && exit 0",
     "clean": "rimraf dist *.tsbuildinfo"
@@ -17,8 +18,28 @@
   "devDependencies": {
     "@types/node": "^22.10.0",
     "electron": "^30.0.0",
+    "electron-builder": "^25.1.8",
     "rimraf": "^6.0.1",
     "typescript": "^5.6.3"
+  },
+  "build": {
+    "appId": "com.mc-forgelab.desktop",
+    "productName": "MC ForgeLab",
+    "directories": {
+      "output": "release"
+    },
+    "files": ["dist/**/*", "package.json"],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "icon": "assets/icon.png"
+    }
   }
 }
-
