@@ -23,11 +23,11 @@ export async function registerProjectRoutes(app: FastifyInstance, ctx: AppContex
       const { name, targetId = "paper", minecraftVersion = "1.20.1", packageName = "com.example.plugin" } = req.body ?? {};
       if (!name || typeof name !== "string" || name.trim().length === 0 || name.length > 128)
         return reply.status(400).send({ error: "name is required (1-128 chars)" });
-      if (!VALID_TARGETS.has(targetId))
+      if (typeof targetId !== "string" || !VALID_TARGETS.has(targetId))
         return reply.status(400).send({ error: `targetId must be one of: ${[...VALID_TARGETS].join(", ")}` });
-      if (!MC_VERSION_RE.test(minecraftVersion))
+      if (typeof minecraftVersion !== "string" || !MC_VERSION_RE.test(minecraftVersion))
         return reply.status(400).send({ error: "minecraftVersion must match x.y or x.y.z" });
-      if (!PKG_RE.test(packageName))
+      if (typeof packageName !== "string" || !PKG_RE.test(packageName))
         return reply.status(400).send({ error: "packageName must be a valid Java package (e.g. com.example.plugin)" });
       const id = randomUUID();
       const slug = name.toLowerCase().replace(/[^a-z0-9-]/g, "-");

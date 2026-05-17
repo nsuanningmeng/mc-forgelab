@@ -23,7 +23,9 @@ export interface RenderOptions {
 }
 
 const TEMPLATES: TemplateMeta[] = [
-  { id: "plugin-paper-java", version: "1.0.0", displayName: "Paper 插件 (Java)", compatibleTargetIds: ["paper", "spigot", "purpur", "folia"], descriptionZh: "Paper 插件 Gradle Kotlin DSL 模板", descriptionEn: "Paper plugin with Gradle Kotlin DSL" }
+  { id: "plugin-paper-java", version: "1.0.0", displayName: "Paper 插件 (Java)", compatibleTargetIds: ["paper", "spigot", "purpur", "folia"], descriptionZh: "Paper 插件 Gradle Kotlin DSL 模板", descriptionEn: "Paper plugin with Gradle Kotlin DSL" },
+  { id: "mod-fabric-java", version: "1.0.0", displayName: "Fabric 模组 (Java)", compatibleTargetIds: ["fabric"], descriptionZh: "Fabric 模组 Loom 模板", descriptionEn: "Fabric mod with Loom" },
+  { id: "plugin-velocity-java", version: "1.0.0", displayName: "Velocity 插件 (Java)", compatibleTargetIds: ["velocity"], descriptionZh: "Velocity 代理端插件模板", descriptionEn: "Velocity proxy plugin" },
 ];
 
 export function listTemplates(targetId?: string): TemplateMeta[] {
@@ -32,8 +34,11 @@ export function listTemplates(targetId?: string): TemplateMeta[] {
 }
 
 export async function renderTemplate(templateId: string, spec: ProjectSpec, outputDir: string, options: RenderOptions = {}): Promise<RenderedFile[]> {
-  if (templateId !== "plugin-paper-java") throw new Error(`Unknown template: ${templateId}`);
-  const files = renderPaperPlugin(spec);
+  let files: RenderedFile[];
+  if (templateId === "plugin-paper-java") files = renderPaperPlugin(spec);
+  else if (templateId === "mod-fabric-java") files = renderFabricMod(spec);
+  else if (templateId === "plugin-velocity-java") files = renderVelocityPlugin(spec);
+  else throw new Error(`Unknown template: ${templateId}`);
   if (!options.dryRun) {
     for (const f of files) {
       const abs = resolveInsideBase(outputDir, f.relativePath);
@@ -141,3 +146,28 @@ ${listenerBody}${cmdBody}}
 function toPascalCase(s: string): string {
   return s.replace(/(?:^|[-_\s])(\w)/g, (_, c: string) => c.toUpperCase()).replace(/[^a-zA-Z0-9]/g, "");
 }
+
+function renderFabricMod(spec: ProjectSpec): RenderedFile[] {
+  const pkg = spec.packageName;
+  const cls = toPascalCase(spec.name);
+  const modId = spec.slug ?? spec.name.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+  const mc = spec.minecraftVersion;
+  const java = spec.javaVersion;
+  return [
+    { relativePath: "build.gradle.kts", content: `plugins { java; id("fabric-loom") version "1.7.+" }\ngroup = "${pkg}"\nversion = "1.0.0"\njava { toolchain.languageVersion.set(JavaLanguageVersion.of(${java})) }\ndependencies {\n  minecraft("com.mojang:minecraft:${mc}")\n  mappings(loom.officialMojangMappings())\n  modImplementation("net.fabricmc:fabric-loader:0.16.+")\n  modImplementation("net.fabricmc.fabric-api:fabric-api:0.+")\n}\n` },
+    { relativePath: "src/main/resources/fabric.mod.json", content: JSON.stringify({ schemaVersion: 1, id: modId, version: "1.0.0", name: spec.name, description: spec.description ?? "", authors: [spec.author ?? "unknown"], entrypoints: { main: [`${pkg}.${cls}`] }, depends: { fabricloader: ">=0.16", minecraft: `~${mc}` } }, null, 2) },
+    { relativePath: `src/main/java/${pkg.replace(/\./g, "/")}/${cls}.java`, content: `package ${pkg};\nimport net.fabricmc.api.ModInitializer;\npublic class ${cls} implements ModInitializer {\n  @Override public void onInitialize() {}\n}\n` },
+  ];
+}
+
+function renderVelocityPlugin(spec: ProjectSpec): RenderedFile[] {
+  const pkg = spec.packageName;
+  const cls = toPascalCase(spec.name);
+  const id = spec.slug ?? spec.name.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+  const java = spec.javaVersion;
+  return [
+    { relativePath: "build.gradle.kts", content: `plugins { java }\ngroup = "${pkg}"\nversion = "1.0.0"\njava { toolchain.languageVersion.set(JavaLanguageVersion.of(${java})) }\nrepositories { maven("https://repo.papermc.io/repository/maven-public/") }\ndependencies { compileOnly("com.velocitypowered:velocity-api:3.3.0-SNAPSHOT") }\n` },
+    { relativePath: `src/main/java/${pkg.replace(/\./g, "/")}/${cls}.java`, content: `package ${pkg};\nimport com.google.inject.Inject;\nimport com.velocitypowered.api.plugin.Plugin;\nimport com.velocitypowered.api.proxy.ProxyServer;\n@Plugin(id = "${id}", name = "${spec.name}", version = "1.0.0")\npublic class ${cls} {\n  @Inject public ${cls}(ProxyServer server) {}\n}\n` },
+  ];
+}
+

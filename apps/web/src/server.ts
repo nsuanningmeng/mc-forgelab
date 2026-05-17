@@ -36,9 +36,13 @@ export async function buildApp() {
     const auth = req.headers.authorization ?? "";
     const [, b64] = auth.split(" ");
     const [user, pass] = Buffer.from(b64 ?? "", "base64").toString().split(":");
-    if (user !== cfg.auth.adminUser || pass !== process.env.MC_FORGELAB_ADMIN_PASSWORD) {
-      return reply.status(401).header("WWW-Authenticate", 'Basic realm="MC-AI-ForgeLab"').send({ error: "Unauthorized" });
-    }
+    const expectedUser = cfg.auth.adminUser ?? "";
+    const expectedPass = process.env.MC_FORGELAB_ADMIN_PASSWORD ?? "";
+    const { timingSafeEqual } = await import("node:crypto");
+    const ok = user?.length === expectedUser.length && pass?.length === expectedPass.length
+      && timingSafeEqual(Buffer.from(user), Buffer.from(expectedUser))
+      && timingSafeEqual(Buffer.from(pass), Buffer.from(expectedPass));
+    if (!ok) return reply.status(401).header("WWW-Authenticate", 'Basic realm="MC-AI-ForgeLab"').send({ error: "Unauthorized" });
   });
   await app.register(staticFiles, { root: join(__dirname, "..", "public"), prefix: "/", decorateReply: false });
 
