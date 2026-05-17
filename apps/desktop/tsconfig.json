@@ -4,8 +4,8 @@
     "rootDir": "src",
     "outDir": "dist",
     "tsBuildInfoFile": "./.tsbuildinfo",
-    "module": "commonjs",
-    "moduleResolution": "node"
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules"],
