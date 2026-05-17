@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, dialog } from "electron";
 import { buildApp } from "@mc-forgelab/web/server";
 import { loadConfig } from "@mc-forgelab/config";
 
@@ -12,13 +12,15 @@ async function start() {
   const port = typeof addr === "object" && addr ? addr.port : 3000;
 
   win = new BrowserWindow({ width: 1280, height: 800, webPreferences: { nodeIntegration: false, contextIsolation: true } });
+  win.webContents.on("did-fail-load", (_e, code, desc) => {
+    dialog.showErrorBox("Load Error", `${desc} (${code})`);
+  });
   win.loadURL(`http://127.0.0.1:${port}`);
   win.on("closed", () => { win = null; fastify.close(); });
   void cfg;
 }
 
 app.whenReady().then(start).catch((err) => {
-  const { dialog } = require("electron");
   dialog.showErrorBox("Startup Error", String(err));
   app.quit();
 });

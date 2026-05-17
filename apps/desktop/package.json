@@ -14,7 +14,20 @@
   },
   "dependencies": {
     "@mc-forgelab/web": "workspace:*",
-    "@mc-forgelab/config": "workspace:*"
+    "@mc-forgelab/config": "workspace:*",
+    "@mc-forgelab/storage": "workspace:*",
+    "@mc-forgelab/app-error": "workspace:*",
+    "@mc-forgelab/logger": "workspace:*",
+    "@mc-forgelab/ai-provider-manager": "workspace:*",
+    "@mc-forgelab/ai-workflow-engine": "workspace:*",
+    "@mc-forgelab/artifact-manager": "workspace:*",
+    "@mc-forgelab/build-orchestrator": "workspace:*",
+    "@mc-forgelab/toolchain-manager": "workspace:*",
+    "@mc-forgelab/template-engine": "workspace:*",
+    "@mc-forgelab/project-model": "workspace:*",
+    "@mc-forgelab/file-operation": "workspace:*",
+    "@mc-forgelab/compatibility": "workspace:*",
+    "@mc-forgelab/target-registry": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
@@ -32,7 +45,8 @@
     "files": [
       "dist/**/*",
       "package.json",
-      "node_modules/@mc-forgelab/web/dist/**/*",
+      "node_modules/@mc-forgelab/*/dist/**/*",
+      "node_modules/@mc-forgelab/*/package.json",
       "node_modules/@mc-forgelab/web/public/**/*"
     ],
     "win": {

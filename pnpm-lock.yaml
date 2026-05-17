@@ -78,9 +78,48 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@mc-forgelab/ai-provider-manager':
+        specifier: workspace:*
+        version: link:../../packages/ai-provider-manager
+      '@mc-forgelab/ai-workflow-engine':
+        specifier: workspace:*
+        version: link:../../packages/ai-workflow-engine
+      '@mc-forgelab/app-error':
+        specifier: workspace:*
+        version: link:../../packages/app-error
+      '@mc-forgelab/artifact-manager':
+        specifier: workspace:*
+        version: link:../../packages/artifact-manager
+      '@mc-forgelab/build-orchestrator':
+        specifier: workspace:*
+        version: link:../../packages/build-orchestrator
+      '@mc-forgelab/compatibility':
+        specifier: workspace:*
+        version: link:../../packages/compatibility
       '@mc-forgelab/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@mc-forgelab/file-operation':
+        specifier: workspace:*
+        version: link:../../packages/file-operation
+      '@mc-forgelab/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@mc-forgelab/project-model':
+        specifier: workspace:*
+        version: link:../../packages/project-model
+      '@mc-forgelab/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+      '@mc-forgelab/target-registry':
+        specifier: workspace:*
+        version: link:../../packages/target-registry
+      '@mc-forgelab/template-engine':
+        specifier: workspace:*
+        version: link:../../packages/template-engine
+      '@mc-forgelab/toolchain-manager':
+        specifier: workspace:*
+        version: link:../../packages/toolchain-manager
       '@mc-forgelab/web':
         specifier: workspace:*
         version: link:../web
