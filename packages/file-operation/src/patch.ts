@@ -80,8 +80,16 @@ export function validatePatch(patch: FilePatch, workspaceRoot: string): PatchVal
       }
     }
 
-    if (op.op === "move" && !op.newPath) {
-      errors.push(`move operation requires newPath: ${op.path}`);
+    if (op.op === "move") {
+      if (!op.newPath) {
+        errors.push(`move operation requires newPath: ${op.path}`);
+      } else {
+        try {
+          resolveInsideBase(workspaceRoot, op.newPath);
+        } catch {
+          errors.push(`Unsafe newPath: ${op.newPath}`);
+        }
+      }
     }
   }
 

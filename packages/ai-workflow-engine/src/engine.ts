@@ -120,10 +120,11 @@ export function createWorkflowEngine(storage: Storage): WorkflowEngine {
     updateRunStatus(runId, status, summary, errorMessage) {
       const now = new Date().toISOString();
       const finished = ["success", "failed", "canceled"].includes(status) ? now : null;
-      storage.backend.run(
+      const result = storage.backend.run(
         "UPDATE ai_workflow_runs SET status=?, finished_at=?, summary=?, error_message=? WHERE id=?",
         [status, finished, summary ?? null, errorMessage ?? null, runId]
       );
+      if (result.changes === 0) throw new AppError(ErrorCode.AI_WORKFLOW_RUN_NOT_FOUND, { details: { runId } });
     },
 
     createStep(runId, stepId, role, modelProfile) {
@@ -149,10 +150,11 @@ export function createWorkflowEngine(storage: Storage): WorkflowEngine {
     updateStepStatus(id, status, opts = {}) {
       const now = new Date().toISOString();
       const finished = ["success", "failed", "skipped"].includes(status) ? now : null;
-      storage.backend.run(
+      const result = storage.backend.run(
         "UPDATE ai_workflow_steps SET status=?, finished_at=?, output_summary=?, token_usage_input=?, token_usage_output=?, error_message=? WHERE id=?",
         [status, finished, opts.outputSummary ?? null, opts.inputTokens ?? 0, opts.outputTokens ?? 0, opts.errorMessage ?? null, id]
       );
+      if (result.changes === 0) throw new AppError(ErrorCode.AI_WORKFLOW_STEP_FAILED, { details: { id, reason: "not found" } });
     },
 
     seedBuiltins() {

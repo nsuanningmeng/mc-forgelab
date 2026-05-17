@@ -133,7 +133,7 @@ export function createProviderManager(storage: Storage, logger?: Logger): Provid
         [input.displayName ?? existing.displayName, input.baseUrl ?? existing.baseUrl, encrypted,
          input.defaultModel ?? existing.defaultModel, JSON.stringify(input.availableModels ?? existing.availableModels),
          JSON.stringify(input.customHeaders ?? existing.customHeaders), input.timeoutMs ?? existing.timeoutMs,
-         existing.enabled ? 1 : 0, now, id]
+         input.enabled !== undefined ? (input.enabled ? 1 : 0) : (existing.enabled ? 1 : 0), now, id]
       );
       return this.getProvider(id);
     },

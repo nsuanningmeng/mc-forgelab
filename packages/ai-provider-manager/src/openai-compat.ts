@@ -21,12 +21,13 @@ export function createOpenAICompatAdapter(cfg: OpenAICompatConfig): ProviderAdap
   const base = cfg.baseUrl.replace(/\/$/, "");
   const timeout = cfg.timeoutMs ?? 60_000;
 
+  const RESERVED_HEADERS = new Set(["content-type", "authorization"]);
   function headers(): Record<string, string> {
-    return {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${cfg.apiKey}`,
-      ...cfg.customHeaders
-    };
+    const custom: Record<string, string> = {};
+    for (const [k, v] of Object.entries(cfg.customHeaders ?? {})) {
+      if (!RESERVED_HEADERS.has(k.toLowerCase())) custom[k] = v;
+    }
+    return { "Content-Type": "application/json", Authorization: `Bearer ${cfg.apiKey}`, ...custom };
   }
 
   async function fetchJson<T>(path: string, body: unknown): Promise<T> {
@@ -70,11 +71,18 @@ export function createOpenAICompatAdapter(cfg: OpenAICompatConfig): ProviderAdap
       const timer = setTimeout(() => ctrl.abort(), timeout);
       try {
         const res = await fetch(`${base}/models`, { headers: headers(), signal: ctrl.signal });
-        if (!res.ok) return [];
+        // 404/501 = endpoint not supported, return empty gracefully
+        if (res.status === 404 || res.status === 501) return [];
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          normalizeHttpError(res.status, text);
+        }
         const data = await res.json() as { data?: OpenAIModel[] };
         return (data.data ?? []).map((m) => ({ id: m.id, displayName: m.id, capabilities: {} }));
-      } catch {
-        return [];
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") throw new AppError(ErrorCode.AI_PROVIDER_UPSTREAM_TIMEOUT, { cause: e });
+        if (e instanceof AppError) throw e;
+        throw new AppError(ErrorCode.AI_PROVIDER_CONNECT_FAILED, { cause: e });
       } finally {
         clearTimeout(timer);
       }

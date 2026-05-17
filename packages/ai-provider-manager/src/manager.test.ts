@@ -63,4 +63,10 @@ describe("ProviderManager", () => {
     manager.deleteProvider(p.id);
     expect(manager.listProviders()).toHaveLength(0);
   });
+
+  it("updateProvider respects enabled flag", () => {
+    const p = manager.createProvider({ displayName: "P", baseUrl: "https://x.com/v1", apiKey: "k", defaultModel: "m", enabled: true });
+    const updated = manager.updateProvider(p.id, { enabled: false });
+    expect(updated.enabled).toBe(false);
+  });
 });

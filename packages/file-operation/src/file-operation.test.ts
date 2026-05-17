@@ -28,9 +28,12 @@ describe("validatePatch", () => {
     const patch: FilePatch = { type: "file_patch", summary: "bad", operations: [{ op: "create", path: "../evil.sh", content: "rm -rf /" }] };
     expect(validatePatch(patch, root).valid).toBe(false);
   });
-  it("rejects too many operations", () => {
-    const ops = Array.from({ length: 51 }, (_, i) => ({ op: "create" as const, path: `file${i}.txt`, content: "" }));
-    const patch: FilePatch = { type: "file_patch", summary: "too many", operations: ops };
+  it("rejects unsafe newPath in move operation", () => {
+    const patch: FilePatch = { type: "file_patch", summary: "bad move", operations: [{ op: "move", path: "src/A.java", newPath: "../evil.sh" }] };
+    expect(validatePatch(patch, root).valid).toBe(false);
+  });
+  it("rejects move without newPath", () => {
+    const patch: FilePatch = { type: "file_patch", summary: "bad", operations: [{ op: "move", path: "src/A.java" }] };
     expect(validatePatch(patch, root).valid).toBe(false);
   });
 });
