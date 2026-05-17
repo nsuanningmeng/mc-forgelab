@@ -9,10 +9,10 @@ window.MCFL = window.MCFL || {};
     ["workspace",  "cpu",       "workspace",  false],
     ["projects",   "folder",    "projects",   true],
     ["workflows",  "git",       "workflows",  true],
-    ["builds",     "terminal",  "builds",     false],
+    ["builds",     "terminal",  "builds",     true],
     ["artifacts",  "box",       "artifacts",  true],
-    ["toolchains", "wrench",    "toolchains", false],
-    ["settings",   "cog",       "settings",   false],
+    ["toolchains", "wrench",    "toolchains", true],
+    ["settings",   "cog",       "settings",   true],
   ];
 
   function Sidebar({ page, onNavigate, t }) {

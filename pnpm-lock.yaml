@@ -175,6 +175,9 @@ importers:
       '@mc-forgelab/template-engine':
         specifier: workspace:*
         version: link:../../packages/template-engine
+      '@mc-forgelab/toolchain-manager':
+        specifier: workspace:*
+        version: link:../../packages/toolchain-manager
       fastify:
         specifier: ^4.28.1
         version: 4.29.1

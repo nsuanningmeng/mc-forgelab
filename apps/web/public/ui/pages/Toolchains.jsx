@@ -1,39 +1,99 @@
-// Toolchains — placeholder for JDK / Gradle / Maven detection
+// Toolchains — live JDK detection via /api/toolchains/doctor
 window.MCFL = window.MCFL || {};
 (function () {
-  const { cx, PageHeader, EmptyState, StatusBadge } = window.MCFL;
+  const { useState, useEffect, useCallback } = React;
+  const { cx, api, Icon, PageHeader, EmptyState, StatusBadge } = window.MCFL;
+
+  // Group doctor results by Java version (doctor() returns one entry per version)
+  const JAVA_VERSIONS = [8, 11, 17, 21];
 
   function Toolchains({ t }) {
+    const [results, setResults] = useState(null);
+    const [error, setError] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    const reload = useCallback(() => {
+      setLoading(true);
+      setError(null);
+      api.toolchainsDoctor()
+        .then((res) => setResults((res && res.results) || []))
+        .catch((err) => setError(err.message || String(err)))
+        .finally(() => setLoading(false));
+    }, []);
+
+    useEffect(reload, [reload]);
+
+    // The current doctor() implementation only checks Java. Build version -> status map.
+    const versionMap = new Map();
+    if (Array.isArray(results)) {
+      let i = 0;
+      for (const v of JAVA_VERSIONS) {
+        versionMap.set(v, results[i] || null);
+        i += 1;
+      }
+    }
+
     return (
       <div className="p-6 max-w-[1200px] mx-auto">
         <PageHeader
           title={t.tc.title}
           subtitle={t.tc.subtitle}
-          badge={<StatusBadge variant="planned" label={t.planned} />}
+          actions={
+            <button onClick={reload} disabled={loading} className={cx.btnSecondary}>
+              <Icon name="refresh" className="w-3.5 h-3.5" />
+              {loading ? t.tc.detecting : t.tc.refresh}
+            </button>
+          }
         />
 
-        <EmptyState
-          icon="wrench"
-          title={t.planned}
-          description={t.tc.placeholderNotice}
-          variant="planned"
-        />
+        {error && (
+          <div className="mb-4 text-xs text-danger bg-danger/5 border border-danger/30 rounded-md px-3 py-2">
+            {error}
+          </div>
+        )}
 
-        <section className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
-          {[
-            { name: "JDK", desc: "Java 17 / 21 detection" },
-            { name: "Gradle", desc: "Wrapper detection & cache" },
-            { name: "Maven", desc: "Mirror & local repo" },
-          ].map((it) => (
-            <div key={it.name} className={cx.j(cx.card, cx.cardPad)}>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-tx1">{it.name}</span>
-                <StatusBadge variant="planned" label={t.planned} />
+        <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          {JAVA_VERSIONS.map((v) => {
+            const r = versionMap.get(v);
+            const installed = r && r.installed;
+            return (
+              <div key={v} className={cx.j(cx.card, "px-4 py-3.5")}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-tx1">Java {v}</span>
+                  <StatusBadge
+                    variant={installed ? "success" : "warn"}
+                    label={installed ? t.tc.installed : t.tc.missing}
+                  />
+                </div>
+                <div className="text-2xs text-tx2 mb-1">{t.tc.versionLabel}</div>
+                <div className={cx.j("text-xs text-tx1 break-all min-h-[1.2em]", cx.mono)}>
+                  {r && r.version ? r.version : <span className="text-tx3">—</span>}
+                </div>
+                {r && r.issues && r.issues.length > 0 && (
+                  <div className="mt-2">
+                    <div className="text-2xs text-tx2 mb-1">{t.tc.issues}</div>
+                    <ul className="text-2xs text-warn space-y-0.5 list-disc list-inside">
+                      {r.issues.map((iss, idx) => (
+                        <li key={idx} className="break-words">{iss}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-              <p className="text-2xs text-tx3 mt-1">{it.desc}</p>
-            </div>
-          ))}
+            );
+          })}
         </section>
+
+        <p className="mt-4 text-2xs text-tx3 flex items-start gap-2">
+          <Icon name="info" className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>{t.tc.hint}</span>
+        </p>
+
+        {results !== null && results.length === 0 && (
+          <div className="mt-6">
+            <EmptyState icon="wrench" title={t.tc.noResults} />
+          </div>
+        )}
       </div>
     );
   }

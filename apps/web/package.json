@@ -1,6 +1,6 @@
 {
   "name": "@mc-forgelab/web",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "exports": {
@@ -35,6 +35,7 @@
     "@mc-forgelab/ai-workflow-engine": "workspace:*",
     "@mc-forgelab/artifact-manager": "workspace:*",
     "@mc-forgelab/build-orchestrator": "workspace:*",
+    "@mc-forgelab/toolchain-manager": "workspace:*",
     "@mc-forgelab/template-engine": "workspace:*",
     "@mc-forgelab/project-model": "workspace:*",
     "fastify": "^4.28.1",

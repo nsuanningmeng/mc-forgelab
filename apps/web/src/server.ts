@@ -4,7 +4,7 @@ import staticFiles from "@fastify/static";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openStorage, BASE_MIGRATIONS, STAGE6_MIGRATIONS } from "@mc-forgelab/storage";
-import { STAGE2_MIGRATIONS } from "@mc-forgelab/ai-provider-manager";
+import { STAGE2_MIGRATIONS, createProviderManager } from "@mc-forgelab/ai-provider-manager";
 import { STAGE3_MIGRATIONS } from "@mc-forgelab/ai-workflow-engine";
 import { createArtifactManager } from "@mc-forgelab/artifact-manager";
 import { loadConfig } from "@mc-forgelab/config";
@@ -12,6 +12,9 @@ import { AppError } from "@mc-forgelab/app-error";
 import { registerProjectRoutes } from "./routes/projects.js";
 import { registerArtifactRoutes } from "./routes/artifacts.js";
 import { registerAIRoutes } from "./routes/ai.js";
+import { registerToolchainRoutes } from "./routes/toolchains.js";
+import { registerBuildRoutes } from "./routes/builds.js";
+import { createBuildRegistry } from "./lib/build-registry.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -23,6 +26,8 @@ export async function buildApp() {
     migrations: [...BASE_MIGRATIONS, ...STAGE2_MIGRATIONS, ...STAGE3_MIGRATIONS, ...STAGE6_MIGRATIONS],
   });
   const artifacts = createArtifactManager(storage);
+  const providers = createProviderManager(storage);
+  const builds = createBuildRegistry();
 
   const app = Fastify({ logger: true });
   await app.register(cors, { origin: cfg.auth.enabled ? false : true });
@@ -52,11 +57,19 @@ export async function buildApp() {
     return reply.status(500).send({ error: "Internal server error" });
   });
 
-  const ctx = { storage, artifacts, cfg };
+  const ctx = { storage, artifacts, cfg, providers, builds };
   await registerProjectRoutes(app, ctx);
   await registerArtifactRoutes(app, ctx);
   await registerAIRoutes(app, ctx);
-  app.get("/api/health", async () => ({ ok: true, version: "0.1.1" }));
+  await registerToolchainRoutes(app, ctx);
+  await registerBuildRoutes(app, ctx);
+  app.get("/api/health", async () => ({ ok: true, version: "0.1.2" }));
+
+  // Cancel all running builds on server shutdown so child Gradle processes
+  // are not orphaned.
+  app.addHook("onClose", async () => {
+    builds.closeAll();
+  });
 
   return { app, storage };
 }

@@ -23,6 +23,8 @@ export interface BuildOptions {
   readonly javaVersion?: 8 | 11 | 17 | 21;
   readonly timeoutMs?: number;
   readonly logsDir?: string;
+  /** Optional AbortSignal — aborting kills the spawned Gradle process. */
+  readonly signal?: AbortSignal;
 }
 
 /** Execute a Gradle build in the project directory. Returns a BuildRecord. */
@@ -68,7 +70,26 @@ export async function runBuild(
       shell: false
     });
 
-    const timer = setTimeout(() => { proc.kill(process.platform === "win32" ? "SIGKILL" : "SIGTERM"); }, timeout);
+    let canceled = false;
+    const killProc = () => {
+      try {
+        proc.kill(process.platform === "win32" ? "SIGKILL" : "SIGTERM");
+      } catch { /* already dead */ }
+    };
+
+    const timer = setTimeout(killProc, timeout);
+
+    // External cancel via AbortSignal
+    let onAbort: (() => void) | null = null;
+    if (opts.signal) {
+      if (opts.signal.aborted) {
+        canceled = true;
+        killProc();
+      } else {
+        onAbort = () => { canceled = true; killProc(); };
+        opts.signal.addEventListener("abort", onAbort, { once: true });
+      }
+    }
 
     const handleLine = (data: Buffer) => {
       const text = data.toString();
@@ -81,10 +102,11 @@ export async function runBuild(
 
     proc.on("close", (code) => {
       clearTimeout(timer);
+      if (onAbort && opts.signal) opts.signal.removeEventListener("abort", onAbort);
       logStream.end();
       const finishedAt = new Date().toISOString();
-      const status: BuildStatus = code === 0 ? "success" : "failed";
-      const errorSummary = code !== 0 ? extractErrorSummary(lines) : null;
+      const status: BuildStatus = canceled ? "canceled" : (code === 0 ? "success" : "failed");
+      const errorSummary = (!canceled && code !== 0) ? extractErrorSummary(lines) : null;
       resolve({ buildId, projectId, status, startedAt, finishedAt, logPath, errorSummary });
     });
   });
