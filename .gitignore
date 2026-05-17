@@ -38,3 +38,6 @@ target/
 # databases
 *.sqlite
 *.db
+
+# local AI planning / Claude Code
+.claude/
