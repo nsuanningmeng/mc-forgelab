@@ -56,7 +56,7 @@ export async function buildApp() {
   await registerProjectRoutes(app, ctx);
   await registerArtifactRoutes(app, ctx);
   await registerAIRoutes(app, ctx);
-  app.get("/api/health", async () => ({ ok: true, version: "0.1.0" }));
+  app.get("/api/health", async () => ({ ok: true, version: "0.1.1" }));
 
   return { app, storage };
 }

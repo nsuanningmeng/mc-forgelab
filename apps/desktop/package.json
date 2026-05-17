@@ -1,6 +1,6 @@
 {
   "name": "@mc-forgelab/desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "main": "dist/main.js",
@@ -50,7 +50,14 @@
       "node_modules/@mc-forgelab/web/public/**/*"
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "assets/icon.ico"
     },
     "nsis": {
@@ -60,15 +67,33 @@
       "createStartMenuShortcut": true,
       "uninstallDisplayName": "MC ForgeLab",
       "deleteAppDataOnUninstall": false,
-      "installerLanguages": ["en_US", "zh_CN"],
+      "installerLanguages": [
+        "en_US",
+        "zh_CN"
+      ],
       "displayLanguageSelector": true
     },
     "mac": {
-      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
       "icon": "assets/icon.icns"
     },
     "linux": {
-      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "assets/icon.png"
     },
     "publish": null
