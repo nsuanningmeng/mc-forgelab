@@ -79,7 +79,7 @@ export async function buildApp() {
   await registerTargetRoutes(app);
   await registerKnowledgeRoutes(app);
   await registerAuditRoutes(app, ctx);
-  app.get("/api/health", async () => ({ ok: true, version: "0.2.0" }));
+  app.get("/api/health", async () => ({ ok: true, version: "0.2.1" }));
 
   app.addHook("onClose", async () => {
     builds.closeAll();
