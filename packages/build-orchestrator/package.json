@@ -16,9 +16,7 @@
   "dependencies": {
     "@mc-forgelab/core": "workspace:*",
     "@mc-forgelab/app-error": "workspace:*",
-    "@mc-forgelab/logger": "workspace:*",
-    "@mc-forgelab/project-model": "workspace:*",
-    "@mc-forgelab/compatibility": "workspace:*",
+    "@mc-forgelab/file-operation": "workspace:*",
     "@mc-forgelab/toolchain-manager": "workspace:*"
   },
   "devDependencies": {

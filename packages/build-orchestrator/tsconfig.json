@@ -6,9 +6,7 @@
   "references": [
     { "path": "../core" },
     { "path": "../app-error" },
-    { "path": "../logger" },
-    { "path": "../project-model" },
-    { "path": "../compatibility" },
+    { "path": "../file-operation" },
     { "path": "../toolchain-manager" }
   ]
 }

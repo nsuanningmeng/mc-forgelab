@@ -1,21 +1,4 @@
-/**
- * @mc-forgelab/project-model — 阶段 2 实施
- *
- * 当前文件仅提供接口契约 stub，后续阶段实现：
- * - ProjectSpec / ProjectModuleSpec
- * - validateProjectSpec(spec)
- * - normalizeProjectSpec(spec)
- * - serializeProjectSpec(spec) → JSON 适配 schemas/project.schema.json
- */
-
 export type ProjectType = "plugin" | "mod" | "proxy" | "hybrid";
-
-export interface ProjectModuleSpec {
-  readonly id: string;
-  readonly type: "plugin" | "mod" | "proxy-plugin" | "shared-lib";
-  readonly sourceSet: "main" | "client" | "server" | "common";
-  readonly entrypoints: Readonly<Record<string, string>>;
-}
 
 export interface ProjectFeatures {
   readonly enableCommand?: boolean;
@@ -26,7 +9,6 @@ export interface ProjectFeatures {
   readonly enablePlaceholderAPI?: boolean;
   readonly enableLuckPerms?: boolean;
   readonly enableVault?: boolean;
-  readonly enableProtocolLib?: boolean;
   readonly enableAdventure?: boolean;
   readonly enableMixin?: boolean;
   readonly enableFoliaSupport?: boolean;
@@ -47,15 +29,19 @@ export interface ProjectSpec {
   readonly description?: string;
   readonly version: string;
   readonly features?: ProjectFeatures;
-  readonly modules?: ReadonlyArray<ProjectModuleSpec>;
 }
 
-/** STAGE 2: throws on invalid spec */
-export function validateProjectSpec(_spec: ProjectSpec): void {
-  throw new Error("project-model.validateProjectSpec: not implemented (stage 2)");
+export function validateProjectSpec(spec: ProjectSpec): void {
+  if (!spec.name || !spec.slug || !spec.packageName) throw new Error("ProjectSpec missing required fields");
+  if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(spec.packageName)) throw new Error(`Invalid packageName: ${spec.packageName}`);
 }
 
-/** STAGE 2: returns normalized spec (defaults filled in) */
 export function normalizeProjectSpec(spec: ProjectSpec): ProjectSpec {
-  throw new Error(`project-model.normalizeProjectSpec: not implemented (stage 2). got ${spec.slug}`);
+  const slug = spec.slug || spec.name.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+  const mainClass = spec.mainClass ?? `${spec.packageName}.${toPascalCase(spec.name)}`;
+  return { ...spec, slug, mainClass, version: spec.version || "1.0.0", author: spec.author || "unknown" };
+}
+
+function toPascalCase(s: string): string {
+  return s.replace(/(?:^|[-_\s])(\w)/g, (_, c: string) => c.toUpperCase()).replace(/[^a-zA-Z0-9]/g, "");
 }

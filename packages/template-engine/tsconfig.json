@@ -6,6 +6,7 @@
   "references": [
     { "path": "../core" },
     { "path": "../app-error" },
-    { "path": "../project-model" }
+    { "path": "../project-model" },
+    { "path": "../file-operation" }
   ]
 }

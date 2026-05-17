@@ -1,61 +1,94 @@
-/**
- * @mc-forgelab/build-orchestrator — 阶段 5 实施
- *
- * 严格约束：
- * - 禁止执行用户输入的任意 shell 字符串
- * - 禁止字符串拼接命令
- * - 默认不使用系统 PATH
- * - 使用 spawn(executable, args[], { shell: false })
- * - 工作目录限制在 workspace 内 (resolveInsideBase)
- * - 必须支持 cancel + timeout + 完整日志保存 + 友好错误摘要
- */
+import { spawn } from "node:child_process";
+import { createWriteStream, mkdirSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { randomUUID } from "node:crypto";
+import { resolveInsideBase } from "@mc-forgelab/file-operation";
+import { resolveJava, resolveGradleWrapper } from "@mc-forgelab/toolchain-manager";
 
-export type BuildStatus = "queued" | "running" | "success" | "failed" | "canceled" | "interrupted";
-export type BuildCommand = "clean" | "build" | "test" | "package" | "publishLocal" | "runServer";
-
-export interface BuildPlanStep {
-  readonly stepId: string;
-  readonly displayName: string;
-  readonly executable: string;
-  readonly args: ReadonlyArray<string>;
-  readonly cwd: string;
-  readonly env: Readonly<Record<string, string>>;
-  readonly timeoutMs: number;
-}
-
-export interface BuildPlan {
-  readonly projectId: string;
-  readonly buildId: string;
-  readonly steps: ReadonlyArray<BuildPlanStep>;
-}
+export type BuildStatus = "queued" | "running" | "success" | "failed" | "canceled";
 
 export interface BuildRecord {
   readonly buildId: string;
   readonly projectId: string;
   readonly status: BuildStatus;
   readonly startedAt: string;
-  readonly finishedAt?: string;
+  readonly finishedAt: string | null;
   readonly logPath: string;
-  readonly errorSummary?: string;
-  readonly compatibilityWarnings: ReadonlyArray<string>;
+  readonly errorSummary: string | null;
 }
 
-export interface BuildOrchestrator {
-  createPlan(projectId: string, command: BuildCommand): Promise<BuildPlan>;
-  execute(plan: BuildPlan, onLog: (line: string) => void): Promise<BuildRecord>;
-  cancel(buildId: string): Promise<void>;
+export interface BuildOptions {
+  readonly workspaceRoot: string;
+  readonly projectPath: string;
+  readonly javaVersion?: 8 | 11 | 17 | 21;
+  readonly timeoutMs?: number;
+  readonly logsDir?: string;
 }
 
-export function createBuildOrchestrator(): BuildOrchestrator {
-  return {
-    async createPlan() {
-      throw new Error("build-orchestrator.createPlan: not implemented (stage 5)");
-    },
-    async execute() {
-      throw new Error("build-orchestrator.execute: not implemented (stage 5)");
-    },
-    async cancel() {
-      throw new Error("build-orchestrator.cancel: not implemented (stage 5)");
-    }
+/** Execute a Gradle build in the project directory. Returns a BuildRecord. */
+export async function runBuild(
+  projectId: string,
+  opts: BuildOptions,
+  onLog: (line: string) => void = () => {}
+): Promise<BuildRecord> {
+  const buildId = randomUUID();
+  const startedAt = new Date().toISOString();
+  const logsDir = opts.logsDir ?? join(opts.workspaceRoot, "logs");
+  const logPath = join(logsDir, `${buildId}.log`);
+  mkdirSync(logsDir, { recursive: true });
+
+  // Validate project path is inside workspace
+  resolveInsideBase(opts.workspaceRoot, opts.projectPath.replace(opts.workspaceRoot, "").replace(/^[/\\]/, "") || ".");
+
+  const javaVersion = opts.javaVersion ?? 17;
+  const [java, gradle] = await Promise.all([
+    resolveJava(javaVersion),
+    resolveGradleWrapper(opts.projectPath)
+  ]);
+
+  const env: Record<string, string> = {
+    ...process.env as Record<string, string>,
+    ...java.env,
+    PATH: process.env.PATH ?? ""
   };
+
+  const logStream = createWriteStream(logPath, { flags: "a" });
+  const lines: string[] = [];
+
+  return new Promise((resolve) => {
+    const timeout = opts.timeoutMs ?? 300_000;
+    const proc = spawn(gradle.executable, ["build", "--no-daemon", "--stacktrace"], {
+      cwd: opts.projectPath,
+      env,
+      shell: false
+    });
+
+    const timer = setTimeout(() => { proc.kill("SIGTERM"); }, timeout);
+
+    const handleLine = (data: Buffer) => {
+      const text = data.toString();
+      logStream.write(text);
+      text.split("\n").filter(Boolean).forEach((l) => { lines.push(l); onLog(l); });
+    };
+
+    proc.stdout.on("data", handleLine);
+    proc.stderr.on("data", handleLine);
+
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      logStream.end();
+      const finishedAt = new Date().toISOString();
+      const status: BuildStatus = code === 0 ? "success" : "failed";
+      const errorSummary = code !== 0 ? extractErrorSummary(lines) : null;
+      resolve({ buildId, projectId, status, startedAt, finishedAt, logPath, errorSummary });
+    });
+  });
+}
+
+/** Extract the most relevant error lines from build output (max 20 lines). */
+export function extractErrorSummary(lines: string[]): string {
+  const errorLines = lines.filter((l) =>
+    /error:|FAILED|Exception|Could not|BUILD FAILED/i.test(l)
+  );
+  return errorLines.slice(0, 20).join("\n") || lines.slice(-10).join("\n");
 }

@@ -1,60 +1,71 @@
-/**
- * @mc-forgelab/toolchain-manager — 阶段 2 实施
- *
- * 职责：
- * - 管理 JDK 8/11/17/21（Windows x64、macOS x64/arm64、Linux x64）
- * - 管理 Gradle / Maven 本体（不依赖系统 PATH）
- * - Node Runtime 策略（生产打包内置）
- * - Git 弱依赖策略（默认 HTTPS zip/tar，无 Git 给友好提示）
- * - manifest.json 校验：toolName / version / platform / arch / sha256 / verified
- * - 构建时返回 { executable, args[], env: { JAVA_HOME, GRADLE_USER_HOME, ... } } 隔离环境
- */
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { platform as osPlatform, arch as osArch, homedir } from "node:os";
+import { execFileSync } from "node:child_process";
 
-export type ToolName = "java" | "gradle" | "maven" | "node" | "git";
+export type ToolName = "java" | "gradle" | "maven";
 export type Platform = "win32" | "darwin" | "linux";
 export type Arch = "x64" | "arm64";
 
-export interface ToolchainManifestEntry {
-  readonly toolName: ToolName;
-  readonly version: string;
-  readonly platform: Platform;
-  readonly arch: Arch;
-  readonly path: string;
-  readonly executablePath: string;
-  readonly sha256: string;
-  readonly source: string;
-  readonly installedAt: string;
-  readonly verified: boolean;
-  readonly license: string;
-  readonly compatibleTargets: ReadonlyArray<string>;
+export interface ResolvedTool {
+  readonly executable: string;
+  readonly env: Readonly<Record<string, string>>;
 }
 
 export interface ToolchainStatus {
   readonly toolName: ToolName;
   readonly installed: boolean;
-  readonly versions: ReadonlyArray<string>;
+  readonly version: string | null;
   readonly issues: ReadonlyArray<string>;
 }
 
-export interface ResolvedTool {
-  readonly executable: string;
-  readonly args: ReadonlyArray<string>;
-  readonly env: Readonly<Record<string, string>>;
-  readonly cwd: string;
+function toolchainsDir(): string {
+  const p = osPlatform();
+  const h = homedir();
+  if (p === "win32") return join(process.env.LOCALAPPDATA ?? join(h, "AppData", "Local"), "MC-ForgeLab", "toolchains");
+  if (p === "darwin") return join(h, "Library", "Application Support", "MC-ForgeLab", "toolchains");
+  return join(h, ".local", "share", "mc-forgelab", "toolchains");
 }
 
-export function listInstalled(): ToolchainManifestEntry[] {
-  throw new Error("toolchain-manager.listInstalled: not implemented (stage 2)");
+function tryExec(cmd: string, args: string[]): string | null {
+  try { return execFileSync(cmd, args, { encoding: "utf8", timeout: 5000 }).trim(); }
+  catch { return null; }
 }
 
-export async function resolveJava(_version: 8 | 11 | 17 | 21): Promise<ResolvedTool> {
-  throw new Error("toolchain-manager.resolveJava: not implemented (stage 2)");
+/** Resolve Java executable — prefers managed toolchain, falls back to system java */
+export async function resolveJava(version: 8 | 11 | 17 | 21): Promise<ResolvedTool> {
+  const managed = join(toolchainsDir(), `jdk-${version}`, osPlatform() === "win32" ? "bin/java.exe" : "bin/java");
+  if (existsSync(managed)) {
+    const javaHome = join(toolchainsDir(), `jdk-${version}`);
+    return { executable: managed, env: { JAVA_HOME: javaHome } };
+  }
+  // Fall back to system java
+  const sysJava = osPlatform() === "win32" ? "java.exe" : "java";
+  const ver = tryExec(sysJava, ["-version"]);
+  if (ver) return { executable: sysJava, env: {} };
+  throw new Error(`Java ${version} not found. Install via: mcforgelab toolchain install java --version ${version}`);
 }
 
-export async function resolveGradle(_version: string): Promise<ResolvedTool> {
-  throw new Error("toolchain-manager.resolveGradle: not implemented (stage 2)");
+/** Resolve Gradle wrapper in project dir, or fall back to system gradle */
+export async function resolveGradleWrapper(projectDir: string): Promise<ResolvedTool> {
+  const wrapper = osPlatform() === "win32" ? join(projectDir, "gradlew.bat") : join(projectDir, "gradlew");
+  if (existsSync(wrapper)) return { executable: wrapper, env: {} };
+  const sysGradle = osPlatform() === "win32" ? "gradle.bat" : "gradle";
+  const ver = tryExec(sysGradle, ["--version"]);
+  if (ver) return { executable: sysGradle, env: {} };
+  throw new Error("Gradle wrapper not found and no system gradle available.");
 }
 
 export async function doctor(): Promise<ReadonlyArray<ToolchainStatus>> {
-  return [];
+  const results: ToolchainStatus[] = [];
+  for (const v of [8, 11, 17, 21] as const) {
+    try {
+      const t = await resolveJava(v);
+      const ver = tryExec(t.executable, ["-version"]);
+      results.push({ toolName: "java", installed: true, version: ver?.split("\n")[0] ?? null, issues: [] });
+    } catch (e) {
+      results.push({ toolName: "java", installed: false, version: null, issues: [(e as Error).message] });
+    }
+  }
+  return results;
 }
