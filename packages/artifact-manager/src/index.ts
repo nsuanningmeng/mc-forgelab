@@ -143,7 +143,7 @@ export function createArtifactManager(storage: Storage) {
       try {
         const real = realpathSync(record.filePath);
         const rel = relative(artifactsBase, real);
-        if (rel.startsWith("..") || rel.startsWith("/")) throw new Error("outside base");
+        if (rel.startsWith("..") || rel.startsWith("/") || rel.startsWith("\\")) throw new Error("outside base");
         safePath = real;
       } catch {
         throw new AppError(ErrorCode.FILE_OP_PATH_UNSAFE, { details: { artifactId } });

@@ -34,7 +34,7 @@ function tryExec(cmd: string, args: string[]): string | null {
 
 /** Resolve Java executable — prefers managed toolchain, falls back to system java */
 export async function resolveJava(version: 8 | 11 | 17 | 21): Promise<ResolvedTool> {
-  const managed = join(toolchainsDir(), `jdk-${version}`, osPlatform() === "win32" ? "bin/java.exe" : "bin/java");
+  const managed = join(toolchainsDir(), `jdk-${version}`, "bin", osPlatform() === "win32" ? "java.exe" : "java");
   if (existsSync(managed)) {
     const javaHome = join(toolchainsDir(), `jdk-${version}`);
     return { executable: managed, env: { JAVA_HOME: javaHome } };

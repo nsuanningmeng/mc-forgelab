@@ -65,7 +65,7 @@ export async function runBuild(
       shell: false
     });
 
-    const timer = setTimeout(() => { proc.kill("SIGTERM"); }, timeout);
+    const timer = setTimeout(() => { proc.kill(process.platform === "win32" ? "SIGKILL" : "SIGTERM"); }, timeout);
 
     const handleLine = (data: Buffer) => {
       const text = data.toString();
