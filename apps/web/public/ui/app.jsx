@@ -7,7 +7,7 @@ const LANGS = {
     dashboard: "仪表盘", newProject: "新建项目", download: "下载中心",
     totalProjects: "项目总数", serviceStatus: "服务状态", version: "版本",
     running: "运行中", offline: "离线",
-    recentProjects: "最近项目", noProjects: "暂无项目，点击"新建项目"开始。",
+    recentProjects: "最近项目", noProjects: '暂无项目，点击"新建项目"开始。',
     createProject: "新建项目", projectName: "项目名称", target: "目标端",
     mcVersion: "Minecraft 版本", packageName: "包名",
     creating: "创建中...", create: "创建项目",
@@ -55,8 +55,9 @@ function Sidebar({ page, setPage, lang, setLang, t }) {
       ))}
       <div className="mt-auto">
         <button onClick={() => setLang(l => l === "zh" ? "en" : "zh")}
+          aria-label="Toggle language / 切换语言"
           className="text-xs text-gray-500 hover:text-gray-300 px-2 py-1 rounded border border-gray-700 w-full">
-          {lang === "zh" ? "English" : "中文"}
+          🌐 {lang === "zh" ? "English" : "中文"}
         </button>
       </div>
     </aside>
@@ -147,8 +148,8 @@ function NewProject({ onCreated, t }) {
           <label className="block text-sm text-gray-400 mb-1">{t.target}</label>
           <select value={form.targetId} onChange={e => setForm(f => ({ ...f, targetId: e.target.value }))}
             className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
-            {["paper", "spigot", "purpur", "folia", "velocity", "fabric", "forge"].map(t => (
-              <option key={t} value={t}>{t}</option>
+            {["paper", "spigot", "purpur", "folia", "velocity", "fabric", "forge"].map(target => (
+              <option key={target} value={target}>{target}</option>
             ))}
           </select>
         </div>
@@ -209,10 +210,16 @@ function App() {
   const [page, setPage] = useState("dashboard");
   const [selectedProject, setSelectedProject] = useState(null);
   const [lang, setLang] = useState(() => {
-    const nav = navigator.language || "zh";
-    return nav.startsWith("zh") ? "zh" : "en";
+    const saved = localStorage.getItem("mcfl.lang");
+    if (saved === "zh" || saved === "en") return saved;
+    return (navigator.language || "zh").startsWith("zh") ? "zh" : "en";
   });
   const t = LANGS[lang];
+
+  useEffect(() => {
+    localStorage.setItem("mcfl.lang", lang);
+    document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  }, [lang]);
 
   const handleCreated = (p) => { setSelectedProject(p); setPage("dashboard"); };
   const handleSelectProject = (p) => { setSelectedProject(p); setPage("download"); };

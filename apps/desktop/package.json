@@ -47,7 +47,7 @@
       "uninstallDisplayName": "MC ForgeLab",
       "deleteAppDataOnUninstall": false,
       "installerLanguages": ["en_US", "zh_CN"],
-      "language": "2052"
+      "displayLanguageSelector": true
     },
     "mac": {
       "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
