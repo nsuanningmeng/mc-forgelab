@@ -3,17 +3,35 @@ import { TargetRegistry, createDefaultRegistry, builtinTargets } from "./index.j
 import { AppError, ErrorCode } from "@mc-forgelab/app-error";
 
 describe("TargetRegistry", () => {
-  it("registers builtin targets (paper, fabric, velocity)", () => {
+  it("registers builtin targets", () => {
     const reg = createDefaultRegistry();
-    const ids = reg.list().map((t) => t.id).sort();
-    expect(ids).toEqual(["fabric", "paper", "velocity"]);
+    // default list excludes legacy (bukkit, spigot) and deprecated (waterfall)
+    const ids = reg.list().map((t) => t.id);
+    expect(ids).toEqual([
+      "bungeecord", "fabric", "folia", "forge",
+      "mohist", "neoforge", "paper", "purpur",
+      "quilt", "velocity"
+    ]);
+  });
+
+  it("registers all 13 targets including legacy and deprecated", () => {
+    const reg = createDefaultRegistry();
+    const ids = reg.list({ includeLegacy: true, includeDeprecated: true }).map((t) => t.id);
+    expect(ids).toEqual([
+      "bukkit", "bungeecord", "fabric", "folia",
+      "forge", "mohist", "neoforge", "paper",
+      "purpur", "quilt", "spigot", "velocity", "waterfall"
+    ]);
   });
 
   it("filters by type", () => {
     const reg = createDefaultRegistry();
-    expect(reg.list({ type: "plugin" }).map((t) => t.id)).toEqual(["paper"]);
-    expect(reg.list({ type: "mod" }).map((t) => t.id)).toEqual(["fabric"]);
-    expect(reg.list({ type: "proxy" }).map((t) => t.id)).toEqual(["velocity"]);
+    // plugin: paper + purpur + folia (stable/experimental); spigot/bukkit excluded (legacy)
+    expect(reg.list({ type: "plugin" }).map((t) => t.id)).toEqual(["folia", "paper", "purpur"]);
+    expect(reg.list({ type: "mod" }).map((t) => t.id)).toEqual(["fabric", "forge", "neoforge", "quilt"]);
+    // proxy: bungeecord + velocity; waterfall excluded (deprecated)
+    expect(reg.list({ type: "proxy" }).map((t) => t.id)).toEqual(["bungeecord", "velocity"]);
+    expect(reg.list({ type: "hybrid" }).map((t) => t.id)).toEqual(["mohist"]);
   });
 
   it("get throws TARGET_NOT_FOUND for missing id", () => {

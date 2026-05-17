@@ -117,5 +117,295 @@ export const builtinTargets: ReadonlyArray<Target> = [
       supportsVelocity: true,
       supportsAdventure: true
     })
+  },
+  // ── plugin 组 ──────────────────────────────────────────────────────────────
+  {
+    id: "spigot",
+    displayName: "Spigot",
+    type: "plugin",
+    stability: "legacy",
+    recommendedBuildTool: "gradle",
+    versionConstraints: [
+      {
+        minecraftRange: ">=1.20.1 <=1.21.4",
+        recommendedJava: 21,
+        supportedJava: [17, 21],
+        recommendedGradle: "8.10",
+        supportedGradle: ["8.7", "8.8", "8.10"]
+      }
+    ],
+    templateIds: ["plugin-spigot-java"],
+    docsUrl: "https://www.spigotmc.org/wiki/spigot/",
+    warningsZh: ["Spigot 已进入维护模式，新项目建议迁移至 Paper 或 Purpur。"],
+    warningsEn: ["Spigot is in maintenance mode; new projects should migrate to Paper or Purpur."],
+    experimental: false,
+    legacy: true,
+    deprecated: false,
+    capabilities: withCaps({
+      supportsPlugins: true,
+      supportsBukkitApi: true,
+      supportsSpigotApi: true,
+      supportsAdventure: true
+    })
+  },
+  {
+    id: "bukkit",
+    displayName: "Bukkit",
+    type: "plugin",
+    stability: "legacy",
+    recommendedBuildTool: "gradle",
+    versionConstraints: [
+      {
+        minecraftRange: ">=1.20.1 <=1.21.4",
+        recommendedJava: 21,
+        supportedJava: [17, 21],
+        recommendedGradle: "8.10",
+        supportedGradle: ["8.7", "8.8", "8.10"]
+      }
+    ],
+    templateIds: ["plugin-bukkit-java"],
+    docsUrl: "https://bukkit.fandom.com/wiki/Plugin_Tutorial",
+    warningsZh: ["Bukkit API 已冻结，仅保留最低限度兼容层，强烈建议迁移至 Paper。"],
+    warningsEn: ["Bukkit API is frozen; migrate to Paper for active development."],
+    experimental: false,
+    legacy: true,
+    deprecated: false,
+    capabilities: withCaps({
+      supportsPlugins: true,
+      supportsBukkitApi: true
+    })
+  },
+  {
+    id: "purpur",
+    displayName: "Purpur",
+    type: "plugin",
+    stability: "stable",
+    recommendedBuildTool: "gradle",
+    versionConstraints: [
+      {
+        minecraftRange: ">=1.20.1 <=1.21.4",
+        recommendedJava: 21,
+        supportedJava: [17, 21],
+        recommendedGradle: "8.10",
+        supportedGradle: ["8.7", "8.8", "8.10"]
+      }
+    ],
+    templateIds: ["plugin-purpur-java"],
+    docsUrl: "https://purpurmc.org/docs/",
+    warningsZh: ["Purpur 扩展了 Paper API，部分 API 不向下兼容 Paper。"],
+    warningsEn: ["Purpur extends Paper API; some APIs are not back-compatible with vanilla Paper."],
+    experimental: false,
+    legacy: false,
+    deprecated: false,
+    capabilities: withCaps({
+      supportsPlugins: true,
+      supportsBukkitApi: true,
+      supportsSpigotApi: true,
+      supportsPaperApi: true,
+      supportsAdventure: true,
+      supportsNms: true
+    })
+  },
+  {
+    id: "folia",
+    displayName: "Folia",
+    type: "plugin",
+    stability: "experimental",
+    recommendedBuildTool: "gradle",
+    versionConstraints: [
+      {
+        minecraftRange: ">=1.20.1 <=1.21.4",
+        recommendedJava: 21,
+        supportedJava: [21],
+        recommendedGradle: "8.10",
+        supportedGradle: ["8.7", "8.8", "8.10"]
+      }
+    ],
+    templateIds: ["plugin-folia-java"],
+    docsUrl: "https://docs.papermc.io/folia",
+    warningsZh: ["Folia 使用区域化线程调度，大量同步 Bukkit API 不可用，需专门适配。"],
+    warningsEn: ["Folia uses regionized threading; many synchronous Bukkit APIs are unavailable and require explicit porting."],
+    experimental: true,
+    legacy: false,
+    deprecated: false,
+    capabilities: withCaps({
+      supportsPlugins: true,
+      supportsBukkitApi: true,
+      supportsSpigotApi: true,
+      supportsPaperApi: true,
+      supportsAdventure: true,
+      supportsFoliaScheduler: true
+    })
+  },
+  // ── mod 组 ─────────────────────────────────────────────────────────────────
+  {
+    id: "forge",
+    displayName: "Forge",
+    type: "mod",
+    stability: "experimental",
+    recommendedBuildTool: "gradle",
+    versionConstraints: [
+      {
+        minecraftRange: ">=1.20.1 <=1.21.4",
+        recommendedJava: 21,
+        supportedJava: [17, 21],
+        recommendedGradle: "8.10",
+        supportedGradle: ["8.7", "8.8", "8.10"]
+      }
+    ],
+    templateIds: ["mod-forge-java"],
+    docsUrl: "https://docs.minecraftforge.net/",
+    warningsZh: ["Forge 构建工具链复杂，每次 MC 大版本升级均需等待官方适配。"],
+    warningsEn: ["Forge toolchain is complex; each major MC version requires waiting for official porting."],
+    experimental: true,
+    legacy: false,
+    deprecated: false,
+    capabilities: withCaps({
+      supportsMods: true,
+      supportsForge: true,
+      supportsMixin: true
+    })
+  },
+  {
+    id: "neoforge",
+    displayName: "NeoForge",
+    type: "mod",
+    stability: "experimental",
+    recommendedBuildTool: "gradle",
+    versionConstraints: [
+      {
+        minecraftRange: ">=1.20.1 <=1.21.4",
+        recommendedJava: 21,
+        supportedJava: [17, 21],
+        recommendedGradle: "8.10",
+        supportedGradle: ["8.7", "8.8", "8.10"]
+      }
+    ],
+    templateIds: ["mod-neoforge-java"],
+    docsUrl: "https://docs.neoforged.net/",
+    warningsZh: ["NeoForge 是 Forge 的社区分支，API 仍在快速演进，注意版本锁定。"],
+    warningsEn: ["NeoForge is a community fork of Forge; API is still evolving rapidly — pin versions carefully."],
+    experimental: true,
+    legacy: false,
+    deprecated: false,
+    capabilities: withCaps({
+      supportsMods: true,
+      supportsNeoForge: true,
+      supportsMixin: true
+    })
+  },
+  {
+    id: "quilt",
+    displayName: "Quilt",
+    type: "mod",
+    stability: "experimental",
+    recommendedBuildTool: "gradle",
+    versionConstraints: [
+      {
+        minecraftRange: ">=1.20.1 <=1.21.4",
+        recommendedJava: 21,
+        supportedJava: [17, 21],
+        recommendedGradle: "8.10",
+        supportedGradle: ["8.7", "8.8", "8.10"]
+      }
+    ],
+    templateIds: ["mod-quilt-java"],
+    docsUrl: "https://quiltmc.org/en/usage/getting-started/",
+    warningsZh: ["Quilt 兼容大多数 Fabric 模组，但部分 Fabric API 扩展行为存在差异。"],
+    warningsEn: ["Quilt is compatible with most Fabric mods, but some Fabric API extension behaviors may differ."],
+    experimental: true,
+    legacy: false,
+    deprecated: false,
+    capabilities: withCaps({
+      supportsMods: true,
+      supportsQuilt: true,
+      supportsFabric: true,
+      supportsMixin: true
+    })
+  },
+  // ── proxy 组 ───────────────────────────────────────────────────────────────
+  {
+    id: "bungeecord",
+    displayName: "BungeeCord",
+    type: "proxy",
+    stability: "stable",
+    recommendedBuildTool: "gradle",
+    versionConstraints: [
+      {
+        minecraftRange: ">=1.20.1 <=1.21.4",
+        recommendedJava: 21,
+        supportedJava: [17, 21],
+        recommendedGradle: "8.10"
+      }
+    ],
+    templateIds: ["plugin-bungeecord-java"],
+    docsUrl: "https://www.spigotmc.org/wiki/bungeecord/",
+    warningsZh: ["BungeeCord 不支持 Adventure API，消息组件需使用旧版 ChatColor。"],
+    warningsEn: ["BungeeCord does not support Adventure API; use legacy ChatColor for message components."],
+    experimental: false,
+    legacy: false,
+    deprecated: false,
+    capabilities: withCaps({
+      supportsProxy: true,
+      supportsBungee: true
+    })
+  },
+  {
+    id: "waterfall",
+    displayName: "Waterfall",
+    type: "proxy",
+    stability: "deprecated",
+    recommendedBuildTool: "gradle",
+    versionConstraints: [
+      {
+        minecraftRange: ">=1.20.1 <=1.21.4",
+        recommendedJava: 21,
+        supportedJava: [17, 21],
+        recommendedGradle: "8.10"
+      }
+    ],
+    templateIds: ["plugin-waterfall-java"],
+    docsUrl: "https://docs.papermc.io/waterfall",
+    warningsZh: ["Waterfall 已于 2024 年 EOL，请迁移至 Velocity。"],
+    warningsEn: ["Waterfall reached EOL in 2024; migrate to Velocity."],
+    experimental: false,
+    legacy: false,
+    deprecated: true,
+    capabilities: withCaps({
+      supportsProxy: true,
+      supportsBungee: true
+    })
+  },
+  // ── hybrid 组 ──────────────────────────────────────────────────────────────
+  {
+    id: "mohist",
+    displayName: "Mohist",
+    type: "hybrid",
+    stability: "experimental",
+    recommendedBuildTool: "gradle",
+    versionConstraints: [
+      {
+        minecraftRange: ">=1.20.1 <=1.21.4",
+        recommendedJava: 21,
+        supportedJava: [17, 21],
+        recommendedGradle: "8.10",
+        supportedGradle: ["8.7", "8.8", "8.10"]
+      }
+    ],
+    templateIds: ["hybrid-mohist-java"],
+    docsUrl: "https://mohistmc.com/",
+    warningsZh: ["混合端兼容性无法保证，插件与模组之间可能存在不可预期的冲突，不建议用于生产环境。"],
+    warningsEn: ["Hybrid runtime compatibility is not guaranteed; unexpected conflicts between plugins and mods may occur. Not recommended for production."],
+    experimental: true,
+    legacy: false,
+    deprecated: false,
+    capabilities: withCaps({
+      supportsPlugins: true,
+      supportsMods: true,
+      supportsHybridRuntime: true,
+      supportsBukkitApi: true,
+      supportsSpigotApi: true,
+      supportsForge: true
+    })
   }
 ];
