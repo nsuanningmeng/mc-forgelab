@@ -31,7 +31,8 @@ jobs:
           node-version: "20"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: pnpm build --filter=!@mc-forgelab/desktop
+      - run: pnpm --filter @mc-forgelab/desktop build
       - name: Package desktop
         run: npx --yes electron-builder --publish never
         working-directory: apps/desktop
