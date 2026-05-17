@@ -29,7 +29,12 @@
     "directories": {
       "output": "release"
     },
-    "files": ["dist/**/*", "package.json"],
+    "files": [
+      "dist/**/*",
+      "package.json",
+      "node_modules/@mc-forgelab/web/dist/**/*",
+      "node_modules/@mc-forgelab/web/public/**/*"
+    ],
     "win": {
       "target": [{ "target": "nsis", "arch": ["x64"] }],
       "icon": "assets/icon.ico"

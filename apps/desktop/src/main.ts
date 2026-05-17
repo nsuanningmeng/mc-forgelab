@@ -17,6 +17,10 @@ async function start() {
   void cfg;
 }
 
-app.whenReady().then(start);
+app.whenReady().then(start).catch((err) => {
+  const { dialog } = require("electron");
+  dialog.showErrorBox("Startup Error", String(err));
+  app.quit();
+});
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
 app.on("activate", () => { if (!win) start(); });
