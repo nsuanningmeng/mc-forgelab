@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mc-forgelab/schemas/project.schema.json",
+  "title": "MC-ForgeLab Project Spec",
+  "description": "Schema for a Minecraft plugin/mod/proxy/hybrid project definition managed by MC-ForgeLab. Validated by build-orchestrator, template-engine and CLI.",
+  "type": "object",
+  "required": ["name", "slug", "type", "targetId", "minecraftVersion", "javaVersion", "buildTool", "packageName", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "UUID v4. Server-assigned; omitted in user-supplied specs.",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "slug": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 60,
+      "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+      "description": "URL- and filesystem-safe identifier."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["plugin", "mod", "proxy", "hybrid"]
+    },
+    "targetId": {
+      "type": "string",
+      "description": "Must match an id registered in target-registry (paper / fabric / velocity / ...)."
+    },
+    "minecraftVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+(?:\\.[0-9]+)?$"
+    },
+    "javaVersion": {
+      "type": "integer",
+      "enum": [8, 11, 17, 21]
+    },
+    "buildTool": {
+      "type": "string",
+      "enum": ["gradle", "maven"]
+    },
+    "packageName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$",
+      "description": "Java package name."
+    },
+    "mainClass": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)+$"
+    },
+    "author": { "type": "string", "maxLength": 200 },
+    "description": { "type": "string", "maxLength": 1000 },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.+-]+)?$"
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enableCommand": { "type": "boolean" },
+        "enableListener": { "type": "boolean" },
+        "enableConfig": { "type": "boolean" },
+        "enablePermissions": { "type": "boolean" },
+        "enableDatabase": { "type": "boolean" },
+        "enablePlaceholderAPI": { "type": "boolean" },
+        "enableLuckPerms": { "type": "boolean" },
+        "enableVault": { "type": "boolean" },
+        "enableProtocolLib": { "type": "boolean" },
+        "enableAdventure": { "type": "boolean" },
+        "enableMixin": { "type": "boolean" },
+        "enableFoliaSupport": { "type": "boolean" }
+      }
+    },
+    "modules": {
+      "type": "array",
+      "description": "Optional multi-module setup (used by hybrid projects).",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "sourceSet", "entrypoints"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "type": { "type": "string", "enum": ["plugin", "mod", "proxy-plugin", "shared-lib"] },
+          "sourceSet": { "type": "string", "enum": ["main", "client", "server", "common"] },
+          "entrypoints": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

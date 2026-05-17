@@ -1,0 +1,57 @@
+# MC-ForgeLab docker-compose 骨架 — 阶段 7 完整实施
+# 当前仅作为参考模板；正式镜像将由 CI 发布到 ghcr.io / Docker Hub。
+#
+# 用法（阶段 7 实施后）：
+#   cp docker/docker-compose.skeleton.yml docker-compose.yml
+#   docker compose up -d
+#   浏览器访问 http://<host>:3000
+#
+# 安全提示：公网部署务必开启 MC_FORGELAB_AUTH_ENABLED=true 并设置强密码。
+
+services:
+  mc-forgelab:
+    # 阶段 7 后改为 image: ghcr.io/<org>/mc-forgelab:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.skeleton
+    image: mc-forgelab:dev
+    container_name: mc-forgelab
+    restart: unless-stopped
+    user: "1000:1000"
+    ports:
+      - "127.0.0.1:3000:3000"   # 默认仅本机访问；公网请配合反代
+    volumes:
+      - ./workspace:/data/workspace
+      - ./cache:/data/cache
+      - ./logs:/data/logs
+      - ./db:/data/db
+      - ./artifacts:/data/artifacts
+      - mcfl-toolchains:/opt/mc-forgelab/toolchains
+    environment:
+      MC_FORGELAB_MODE: web
+      MC_FORGELAB_HOST: 0.0.0.0
+      MC_FORGELAB_PORT: "3000"
+      MC_FORGELAB_LOG_LEVEL: info
+      MC_FORGELAB_WORKSPACE: /data/workspace
+      MC_FORGELAB_CACHE: /data/cache
+      MC_FORGELAB_LOGS: /data/logs
+      MC_FORGELAB_DB: /data/db/mc-forgelab.sqlite
+      MC_FORGELAB_TOOLCHAINS: /opt/mc-forgelab/toolchains
+      MC_FORGELAB_ARTIFACTS: /data/artifacts
+      MC_FORGELAB_MAX_BUILD_CONCURRENCY: "1"
+      MC_FORGELAB_ARTIFACT_RETENTION_DAYS: "30"
+      MC_FORGELAB_MAX_ARTIFACT_STORAGE: "20GB"
+      # 公网部署强烈建议：
+      # MC_FORGELAB_AUTH_ENABLED: "true"
+      # MC_FORGELAB_ADMIN_USER: admin
+      # MC_FORGELAB_ADMIN_PASSWORD: change-me-now
+      # MC_FORGELAB_BASE_URL: https://mcforgelab.example.com
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  mcfl-toolchains:

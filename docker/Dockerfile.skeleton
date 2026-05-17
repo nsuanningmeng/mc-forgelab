@@ -1,0 +1,86 @@
+# ============================================================
+# MC-ForgeLab Dockerfile — 骨架（阶段 7 完整实施）
+#
+# 选型说明：
+# - 基础镜像选 Debian slim，避免 Alpine musl 与 better-sqlite3 编译陷阱
+# - 多阶段：builder 产 dist，runtime 仅含运行时
+# - 非 root 用户 mcfl (UID/GID 1000)
+# - 内置 JDK 17 + JDK 21 + Maven + 常用 Gradle distribution
+# - workspace / cache / logs / db / toolchains 通过 volume 挂载
+# - 不要求用户进入容器安装工具
+# ============================================================
+
+ARG NODE_VERSION=20.18
+
+# ------------------ Stage 1: deps ------------------
+FROM node:${NODE_VERSION}-bookworm-slim AS deps
+WORKDIR /app
+ENV PNPM_HOME=/pnpm \
+    PATH=$PNPM_HOME:$PATH \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+RUN corepack enable
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
+COPY apps apps
+COPY packages packages
+RUN pnpm install --frozen-lockfile
+
+# ------------------ Stage 2: builder ------------------
+FROM deps AS builder
+WORKDIR /app
+COPY . .
+RUN pnpm typecheck && pnpm test && pnpm build
+
+# ------------------ Stage 3: runtime ------------------
+FROM node:${NODE_VERSION}-bookworm-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl zip unzip tini \
+    && rm -rf /var/lib/apt/lists/*
+
+# 创建非 root 用户
+ARG MCFL_UID=1000
+ARG MCFL_GID=1000
+RUN groupadd -g ${MCFL_GID} mcfl && \
+    useradd -m -u ${MCFL_UID} -g ${MCFL_GID} -s /bin/bash mcfl
+
+# 工具链与数据目录（运行时由 volume 覆盖；这里仅占位）
+RUN mkdir -p /opt/mc-forgelab/toolchains /data/workspace /data/cache /data/logs /data/db /data/artifacts \
+ && chown -R mcfl:mcfl /opt/mc-forgelab /data
+
+# TODO 阶段 7：在此预装 JDK 17 / JDK 21 / Maven 3.9 + 缓存 Gradle distributions
+# 当前仅留 placeholder：
+#   COPY --from=adoptium-cache /opt/jdk-17 /opt/mc-forgelab/toolchains/jdk-17-linux-x64
+#   COPY --from=adoptium-cache /opt/jdk-21 /opt/mc-forgelab/toolchains/jdk-21-linux-x64
+#   COPY --from=apache-maven /opt/maven /opt/mc-forgelab/toolchains/maven-3.9.6
+
+WORKDIR /app
+COPY --from=builder --chown=mcfl:mcfl /app/node_modules ./node_modules
+COPY --from=builder --chown=mcfl:mcfl /app/packages ./packages
+COPY --from=builder --chown=mcfl:mcfl /app/apps ./apps
+COPY --from=builder --chown=mcfl:mcfl /app/package.json /app/pnpm-workspace.yaml ./
+
+ENV NODE_ENV=production \
+    MC_FORGELAB_MODE=docker \
+    MC_FORGELAB_HOST=0.0.0.0 \
+    MC_FORGELAB_PORT=3000 \
+    MC_FORGELAB_WORKSPACE=/data/workspace \
+    MC_FORGELAB_CACHE=/data/cache \
+    MC_FORGELAB_LOGS=/data/logs \
+    MC_FORGELAB_DB=/data/db/mc-forgelab.sqlite \
+    MC_FORGELAB_TOOLCHAINS=/opt/mc-forgelab/toolchains \
+    MC_FORGELAB_ARTIFACTS=/data/artifacts \
+    MC_FORGELAB_MAX_BUILD_CONCURRENCY=1
+
+USER mcfl
+EXPOSE 3000
+
+# tini 作为 PID 1 处理僵尸进程（避免构建子进程孤儿化）
+ENTRYPOINT ["/usr/bin/tini", "--"]
+
+# 阶段 7 完整实施后改为：
+#   CMD ["node", "apps/web/dist/server.js"]
+# 当前骨架以 CLI doctor 作为可验证入口：
+CMD ["node", "apps/cli/bin/mcforgelab.mjs", "doctor"]

@@ -1,0 +1,32 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+
+# test artefacts
+coverage/
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# logs & runtime
+logs/
+*.log
+.env
+.env.*
+!.env.example
+
+# turbo
+.turbo/
+
+# generated data
+data/
+workspace/
+cache/

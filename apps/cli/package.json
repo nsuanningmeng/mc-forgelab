@@ -1,0 +1,42 @@
+{
+  "name": "@mc-forgelab/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "mcforgelab": "./bin/mcforgelab.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "bin"],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "start": "node --enable-source-maps ./bin/mcforgelab.mjs",
+    "clean": "rimraf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@mc-forgelab/core": "workspace:*",
+    "@mc-forgelab/app-error": "workspace:*",
+    "@mc-forgelab/logger": "workspace:*",
+    "@mc-forgelab/config": "workspace:*",
+    "@mc-forgelab/storage": "workspace:*",
+    "@mc-forgelab/target-registry": "workspace:*",
+    "@mc-forgelab/compatibility": "workspace:*",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

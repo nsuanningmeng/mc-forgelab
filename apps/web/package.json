@@ -1,0 +1,17 @@
+{
+  "name": "@mc-forgelab/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MC-ForgeLab WebUI (Vite + React + Tailwind). Stage 3+ implementation.",
+  "scripts": {
+    "dev": "echo \"web app: stage 3 not implemented\" && exit 0",
+    "build": "echo \"web app: stage 3 not implemented\" && exit 0",
+    "typecheck": "echo \"no source yet\" && exit 0",
+    "test": "echo \"no tests yet\" && exit 0",
+    "clean": "rimraf dist"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1"
+  }
+}

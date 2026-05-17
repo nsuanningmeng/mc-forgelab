@@ -1,0 +1,17 @@
+{
+  "name": "@mc-forgelab/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MC-ForgeLab Desktop (Electron). Stage 8 implementation.",
+  "scripts": {
+    "dev": "echo \"desktop app: stage 8 not implemented\" && exit 0",
+    "build": "echo \"desktop app: stage 8 not implemented\" && exit 0",
+    "typecheck": "echo \"no source yet\" && exit 0",
+    "test": "echo \"no tests yet\" && exit 0",
+    "clean": "rimraf dist"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1"
+  }
+}

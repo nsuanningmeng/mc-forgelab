@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/app-error" },
+    { "path": "./packages/logger" },
+    { "path": "./packages/config" },
+    { "path": "./packages/storage" },
+    { "path": "./packages/target-registry" },
+    { "path": "./packages/compatibility" },
+    { "path": "./packages/project-model" },
+    { "path": "./packages/template-engine" },
+    { "path": "./packages/toolchain-manager" },
+    { "path": "./packages/build-orchestrator" },
+    { "path": "./packages/artifact-manager" },
+    { "path": "./packages/queue-manager" },
+    { "path": "./packages/auth" },
+    { "path": "./packages/ai-provider-manager" },
+    { "path": "./packages/ai-workflow-engine" },
+    { "path": "./packages/file-operation" },
+    { "path": "./packages/ai-agent" },
+    { "path": "./apps/cli" }
+  ]
+}
