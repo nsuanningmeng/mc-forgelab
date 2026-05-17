@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://unpkg.com 'unsafe-inline'; style-src 'self' 'unsafe-inline';" />
   <title>MC-AI-ForgeLab</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js" integrity="sha384-4Q9rmFBMFMBMFMBMFMBMFMBMFMBMFMBMFMBMFMBMFMBMFMBMFMBMFMBMFMBMFMBMF" crossorigin="anonymous"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
   <script>tailwind.config = { darkMode: 'class' }</script>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen dark">
   <div id="root"></div>
-  <script type="text/babel" data-type="module" src="/ui/app.jsx"></script>
+  <script src="/ui/app.js"></script>
 </body>
 </html>
+

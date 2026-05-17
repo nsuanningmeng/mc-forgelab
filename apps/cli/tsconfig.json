@@ -14,6 +14,9 @@
     { "path": "../../packages/config" },
     { "path": "../../packages/storage" },
     { "path": "../../packages/target-registry" },
-    { "path": "../../packages/compatibility" }
+    { "path": "../../packages/compatibility" },
+    { "path": "../../packages/toolchain-manager" },
+    { "path": "../../packages/ai-provider-manager" },
+    { "path": "../../packages/ai-workflow-engine" }
   ]
 }

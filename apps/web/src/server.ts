@@ -25,7 +25,21 @@ export async function buildApp() {
   const artifacts = createArtifactManager(storage);
 
   const app = Fastify({ logger: true });
-  await app.register(cors, { origin: true });
+  await app.register(cors, { origin: cfg.auth.enabled ? false : true });
+
+  // Security headers + optional basic auth
+  app.addHook("onRequest", async (req, reply) => {
+    reply.header("X-Content-Type-Options", "nosniff");
+    reply.header("X-Frame-Options", "DENY");
+    if (!req.url.startsWith("/api/")) return; // static files skip auth
+    if (!cfg.auth.enabled) return;
+    const auth = req.headers.authorization ?? "";
+    const [, b64] = auth.split(" ");
+    const [user, pass] = Buffer.from(b64 ?? "", "base64").toString().split(":");
+    if (user !== cfg.auth.adminUser || pass !== process.env.MC_FORGELAB_ADMIN_PASSWORD) {
+      return reply.status(401).header("WWW-Authenticate", 'Basic realm="MC-AI-ForgeLab"').send({ error: "Unauthorized" });
+    }
+  });
   await app.register(staticFiles, { root: join(__dirname, "..", "public"), prefix: "/", decorateReply: false });
 
   app.setErrorHandler((err, _req, reply) => {

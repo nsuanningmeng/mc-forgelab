@@ -1,6 +1,9 @@
 import { Command } from "commander";
 import { registerDoctorCommand } from "./commands/doctor.js";
 import { registerTargetCommands } from "./commands/target-list.js";
+import { registerAICommands } from "./commands/ai.js";
+import { registerToolchainCommands } from "./commands/toolchain.js";
+import { registerCacheCommands } from "./commands/cache.js";
 
 export interface ProgramContext {
   readonly env: Readonly<Record<string, string | undefined>>;
@@ -19,6 +22,9 @@ export function buildProgram(ctx: ProgramContext): Command {
 
   registerDoctorCommand(program, ctx);
   registerTargetCommands(program, ctx);
+  registerAICommands(program, ctx);
+  registerToolchainCommands(program, ctx);
+  registerCacheCommands(program, ctx);
 
   return program;
 }

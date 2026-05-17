@@ -2,16 +2,23 @@
   "name": "@mc-forgelab/desktop",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
-  "description": "MC-ForgeLab Desktop (Electron). Stage 8 implementation.",
+  "main": "dist/main.js",
   "scripts": {
-    "dev": "echo \"desktop app: stage 8 not implemented\" && exit 0",
-    "build": "echo \"desktop app: stage 8 not implemented\" && exit 0",
-    "typecheck": "echo \"no source yet\" && exit 0",
-    "test": "echo \"no tests yet\" && exit 0",
-    "clean": "rimraf dist"
+    "dev": "tsc -b && electron .",
+    "build": "tsc -b",
+    "typecheck": "tsc -b",
+    "test": "echo \"no tests\" && exit 0",
+    "clean": "rimraf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@mc-forgelab/web": "workspace:*",
+    "@mc-forgelab/config": "workspace:*"
   },
   "devDependencies": {
-    "rimraf": "^6.0.1"
+    "@types/node": "^22.10.0",
+    "electron": "^30.0.0",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.6.3"
   }
 }
+

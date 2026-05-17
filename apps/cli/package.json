@@ -30,6 +30,9 @@
     "@mc-forgelab/storage": "workspace:*",
     "@mc-forgelab/target-registry": "workspace:*",
     "@mc-forgelab/compatibility": "workspace:*",
+    "@mc-forgelab/toolchain-manager": "workspace:*",
+    "@mc-forgelab/ai-provider-manager": "workspace:*",
+    "@mc-forgelab/ai-workflow-engine": "workspace:*",
     "cli-table3": "^0.6.5",
     "commander": "^12.1.0",
     "picocolors": "^1.1.1"
