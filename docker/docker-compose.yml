@@ -1,0 +1,29 @@
+services:
+  mc-forgelab:
+    image: mc-forgelab:latest
+    container_name: mc-forgelab
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./workspace:/data/workspace
+      - ./cache:/data/cache
+      - ./logs:/data/logs
+      - ./db:/data/db
+      - ./toolchains:/opt/mc-forgelab/toolchains
+    environment:
+      MC_FORGELAB_MODE: web
+      MC_FORGELAB_HOST: 0.0.0.0
+      MC_FORGELAB_PORT: "3000"
+      MC_FORGELAB_WORKSPACE: /data/workspace
+      MC_FORGELAB_CACHE: /data/cache
+      MC_FORGELAB_LOGS: /data/logs
+      MC_FORGELAB_DB: /data/db/mc-forgelab.sqlite
+      MC_FORGELAB_MAX_BUILD_CONCURRENCY: "1"
+      MC_FORGELAB_AUTH_ENABLED: "false"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

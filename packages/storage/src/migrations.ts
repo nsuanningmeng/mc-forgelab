@@ -74,7 +74,11 @@ export const BASE_MIGRATIONS: ReadonlyArray<Migration> = [
           file_size INTEGER NOT NULL,
           sha256 TEXT NOT NULL,
           type TEXT NOT NULL,
+          target_id TEXT NOT NULL DEFAULT '',
+          minecraft_version TEXT NOT NULL DEFAULT '',
+          java_version INTEGER NOT NULL DEFAULT 17,
           created_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL DEFAULT '',
           downloadable INTEGER NOT NULL DEFAULT 1,
           FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
           FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE CASCADE

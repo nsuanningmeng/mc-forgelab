@@ -13,10 +13,13 @@ export async function registerProjectRoutes(app: FastifyInstance, ctx: AppContex
     return row;
   });
 
-  app.post<{ Body: { name: string; targetId?: string; minecraftVersion?: string; packageName?: string } }>(
+  app.post<{ Body: { name?: string; targetId?: string; minecraftVersion?: string; packageName?: string } }>(
     "/api/projects",
     async (req, reply) => {
-      const { name, targetId = "paper", minecraftVersion = "1.20.1", packageName = "com.example.plugin" } = req.body;
+      const { name, targetId = "paper", minecraftVersion = "1.20.1", packageName = "com.example.plugin" } = req.body ?? {};
+      if (!name || typeof name !== "string" || name.trim().length === 0 || name.length > 128) {
+        return reply.status(400).send({ error: "name is required (1-128 chars)" });
+      }
       const id = randomUUID();
       const slug = name.toLowerCase().replace(/[^a-z0-9-]/g, "-");
       const now = new Date().toISOString();

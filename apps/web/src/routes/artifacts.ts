@@ -12,6 +12,8 @@ export async function registerArtifactRoutes(app: FastifyInstance, ctx: AppConte
     async (req, reply) => {
       try {
         const dl = await ctx.artifacts.openDownload(req.params.artifactId, ctx.cfg.paths.workspace);
+        // IDOR check: artifact must belong to the requested project
+        if (dl.record.projectId !== req.params.id) return reply.status(403).send({ error: "Forbidden" });
         reply.header("Content-Disposition", dl.contentDisposition);
         reply.header("Content-Type", dl.contentType);
         reply.header("Content-Length", dl.contentLength);
@@ -27,7 +29,9 @@ export async function registerArtifactRoutes(app: FastifyInstance, ctx: AppConte
   app.delete<{ Params: { id: string; artifactId: string } }>(
     "/api/projects/:id/artifacts/:artifactId",
     async (req, reply) => {
-      await ctx.artifacts.delete(req.params.artifactId);
+      const record = await ctx.artifacts.get(req.params.artifactId);
+      if (record.projectId !== req.params.id) return reply.status(403).send({ error: "Forbidden" });
+      await ctx.artifacts.delete(req.params.artifactId, ctx.cfg.paths.workspace);
       return reply.status(204).send();
     }
   );

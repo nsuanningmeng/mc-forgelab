@@ -137,19 +137,25 @@ export function createArtifactManager(storage: Storage) {
     async openDownload(artifactId: string, workspaceRoot: string) {
       const record = await this.get(artifactId);
       if (!record.downloadable) throw new AppError(ErrorCode.ARTIFACT_NOT_FOUND, { details: { artifactId, reason: "not downloadable" } });
-      // Security: re-resolve path inside workspace/artifacts
       const artifactsBase = join(workspaceRoot, "artifacts");
-      resolveInsideBase(artifactsBase, record.filePath.replace(artifactsBase, "").replace(/^[/\\]/, "") || ".");
-      if (!existsSync(record.filePath)) throw new AppError(ErrorCode.ARTIFACT_NOT_FOUND, { details: { artifactId, reason: "file missing" } });
-      const stat = statSync(record.filePath);
+      // Use the resolved safe path — not the raw DB path
+      const safePath = resolveInsideBase(artifactsBase, record.filePath.replace(artifactsBase, "").replace(/^[/\\]/, "") || ".");
+      if (!existsSync(safePath)) throw new AppError(ErrorCode.ARTIFACT_NOT_FOUND, { details: { artifactId, reason: "file missing" } });
+      const stat = statSync(safePath);
       const ext = record.fileName.split(".").pop() ?? "";
       const contentType = ext === "jar" ? "application/java-archive" : ext === "json" ? "application/json" : ext === "log" ? "text/plain" : "application/octet-stream";
-      return { record, stream: createReadStream(record.filePath), contentType, contentLength: stat.size, contentDisposition: `attachment; filename="${record.fileName}"`, sha256: record.sha256 };
+      return { record, stream: createReadStream(safePath), contentType, contentLength: stat.size, contentDisposition: `attachment; filename="${record.fileName}"`, sha256: record.sha256 };
     },
 
-    async delete(artifactId: string): Promise<void> {
+    async delete(artifactId: string, workspaceRoot?: string): Promise<void> {
       const record = await this.get(artifactId);
-      if (existsSync(record.filePath)) rmSync(record.filePath);
+      if (workspaceRoot && existsSync(record.filePath)) {
+        const artifactsBase = join(workspaceRoot, "artifacts");
+        try {
+          const safePath = resolveInsideBase(artifactsBase, record.filePath.replace(artifactsBase, "").replace(/^[/\\]/, "") || ".");
+          rmSync(safePath);
+        } catch { /* path outside base — skip file deletion */ }
+      }
       storage.backend.run("DELETE FROM artifacts WHERE id = ?", [artifactId]);
     },
 
@@ -158,8 +164,12 @@ export function createArtifactManager(storage: Storage) {
       const expired = storage.backend.all<Record<string, unknown>>(
         "SELECT * FROM artifacts WHERE created_at < ?", [cutoff]
       ).map(rowToRecord);
+      const artifactsBase = join(workspaceRoot, "artifacts");
       for (const r of expired) {
-        if (existsSync(r.filePath)) rmSync(r.filePath);
+        try {
+          const safePath = resolveInsideBase(artifactsBase, r.filePath.replace(artifactsBase, "").replace(/^[/\\]/, "") || ".");
+          if (existsSync(safePath)) rmSync(safePath);
+        } catch { /* skip unsafe paths */ }
         storage.backend.run("DELETE FROM artifacts WHERE id = ?", [r.artifactId]);
       }
       return { deleted: expired.length };
