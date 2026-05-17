@@ -1,16 +1,16 @@
-// Settings — provider CRUD + appearance preferences
 window.MCFL = window.MCFL || {};
 (function () {
   const { useState, useEffect, useCallback } = React;
   const { cx, api, PageHeader, EmptyState, StatusBadge, Icon, ProviderForm } = window.MCFL;
 
-  function Section({ title, badge, children }) {
+  function Section({ title, description, badge, children }) {
     return (
       <section className={cx.j(cx.card, "px-4 py-3.5")}>
-        <header className="flex items-center justify-between mb-2">
+        <header className="flex items-center justify-between mb-1">
           <h2 className="text-sm font-semibold text-tx1">{title}</h2>
           {badge}
         </header>
+        <p className="text-xs text-tx3 mb-3 leading-relaxed">{description}</p>
         <div className="text-xs text-tx2">{children}</div>
       </section>
     );
@@ -45,7 +45,7 @@ window.MCFL = window.MCFL || {};
     );
   }
 
-  function Settings({ t, lang, onSetLang }) {
+  function Settings({ t, lang, onSetLang, onSetTheme, theme }) {
     const [providers, setProviders] = useState(null);
     const [showForm, setShowForm] = useState(false);
     const [busy, setBusy] = useState(null);
@@ -100,117 +100,73 @@ window.MCFL = window.MCFL || {};
     };
 
     const tf = t.settings.providers;
+    const desc = t.settings.descriptions;
 
     return (
       <div className="p-6 max-w-[1100px] mx-auto">
-        <PageHeader
-          title={t.settings.title}
-          subtitle={t.settings.subtitle}
-        />
+        <PageHeader title={t.settings.title} subtitle={t.settings.subtitle} />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {/* Provider section — full functionality */}
-          <Section
-            title={t.settings.groups.provider}
-            badge={
-              providers === null
-                ? null
-                : <StatusBadge variant={providers.length > 0 ? "success" : "warn"} label={providers.length > 0 ? `${providers.length}` : "none"} dot={false} />
-            }
-          >
-            {error && (
-              <div className="mb-2 text-xs text-danger bg-danger/5 border border-danger/30 rounded-md px-3 py-2">
-                {error}
-              </div>
-            )}
-            {testResult && (
-              <div className={cx.j(
-                "mb-2 text-xs px-3 py-2 rounded-md border",
-                testResult.ok ? "text-mc bg-mc/5 border-mc/30" : "text-danger bg-danger/5 border-danger/30"
-              )}>
-                {testResult.message}
-              </div>
-            )}
+          <Section title={t.settings.groups.provider} description={desc.provider}>
+            {error && <div className="mb-2 text-xs text-danger bg-danger/5 border border-danger/30 rounded-md px-3 py-2">{error}</div>}
+            {testResult && <div className={cx.j("mb-2 text-xs px-3 py-2 rounded-md border", testResult.ok ? "text-mc bg-mc/5 border-mc/30" : "text-danger bg-danger/5 border-danger/30")}>{testResult.message}</div>}
+            
             {providers === null ? (
               <span className="text-tx3">{t.common.loading}…</span>
             ) : providers.length === 0 && !showForm ? (
-              <EmptyState
-                icon="cpu"
-                title={tf.empty}
-                action={
-                  <button onClick={() => setShowForm(true)} className={cx.btnPrimary}>
-                    <Icon name="plus" className="w-3.5 h-3.5" />
-                    {tf.add}
-                  </button>
-                }
-              />
+              <EmptyState icon="cpu" title={tf.empty} action={<button onClick={() => setShowForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tf.add}</button>} />
             ) : (
               <div className="space-y-2">
                 {!showForm && (
-                  <div className="flex justify-end">
-                    <button onClick={() => setShowForm(true)} className={cx.btnPrimary}>
-                      <Icon name="plus" className="w-3.5 h-3.5" />
-                      {tf.add}
-                    </button>
-                  </div>
+                  <div className="flex justify-end"><button onClick={() => setShowForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tf.add}</button></div>
                 )}
-                {showForm && (
-                  <ProviderForm
-                    t={t}
-                    mode="create"
-                    onSave={handleSave}
-                    onCancel={() => setShowForm(false)}
-                  />
-                )}
+                {showForm && <ProviderForm t={t} mode="create" onSave={handleSave} onCancel={() => setShowForm(false)} />}
                 {providers.length > 0 && (
-                  <div className={cx.j(cx.card, "divide-y divide-border md:col-span-2")}>
-                    {providers.map((p) => (
-                      <ProviderRow
-                        key={p.id}
-                        p={p}
-                        t={t}
-                        busy={busy}
-                        onToggle={handleToggle}
-                        onDelete={handleDelete}
-                        onTest={handleTest}
-                      />
-                    ))}
+                  <div className={cx.j(cx.card, "divide-y divide-border")}>
+                    {providers.map(p => <ProviderRow key={p.id} p={p} t={t} busy={busy} onToggle={handleToggle} onDelete={handleDelete} onTest={handleTest} />)}
                   </div>
                 )}
               </div>
             )}
           </Section>
 
-          <Section title={t.settings.groups.models} badge={<StatusBadge variant="planned" label={t.planned} />}>
-            Model profile editor will be wired with the workflow runtime.
-          </Section>
-          <Section title={t.settings.groups.toolchains} badge={<StatusBadge variant="success" label="wired" dot={false} />}>
-            JDK detection is live — see the Toolchains page. Install/uninstall is CLI-only for now.
-          </Section>
-          <Section title={t.settings.groups.workspace} badge={<StatusBadge variant="planned" label={t.planned} />}>
-            Workspace path, project quota, artifact retention.
-          </Section>
-          <Section title={t.settings.groups.security} badge={<StatusBadge variant="planned" label={t.planned} />}>
-            Basic auth admin credentials are read from environment for now.
-          </Section>
-          <Section title={t.settings.groups.proxy} badge={<StatusBadge variant="planned" label={t.planned} />}>
-            HTTP/HTTPS proxy for AI Provider requests.
+          <Section title={t.settings.groups.models} description={desc.models} badge={<StatusBadge variant="planned" label={t.planned} />}>
+            <div className="italic text-tx3 opacity-60">— Model Profile Editor is being integrated —</div>
           </Section>
 
-          <Section title={t.settings.groups.appearance}>
-            <div className="flex items-center justify-between">
+          <Section title={t.settings.groups.toolchains} description={desc.toolchains} badge={<StatusBadge variant="success" label="active" dot={false} />}>
+            <div className="flex items-center gap-2">
+              <Icon name="check" className="text-mc w-3.5 h-3.5" />
+              <span>JDK detection is live. CLI manages installs.</span>
+            </div>
+          </Section>
+
+          <Section title={t.settings.groups.workspace} description={desc.workspace} badge={<StatusBadge variant="planned" label={t.planned} />}>
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between"><span>Default Path</span><span className={cx.mono}>/opt/mc-forgelab</span></div>
+              <div className="flex justify-between"><span>Quota</span><span>10 GB</span></div>
+            </div>
+          </Section>
+
+          <Section title={t.settings.groups.security} description={desc.security}>
+            <button className={cx.btnSecondary} disabled>{t.common.confirm} Rotation</button>
+          </Section>
+
+          <Section title={t.settings.groups.appearance} description={desc.appearance}>
+            <div className="flex items-center justify-between mb-3">
               <span>{t.settings.language}</span>
               <div className="flex items-center gap-1">
                 {["zh", "en"].map((l) => (
-                  <button key={l} type="button" onClick={() => onSetLang(l)} className={lang === l ? cx.chipActive : cx.chipNeutral}>
-                    {l.toUpperCase()}
-                  </button>
+                  <button key={l} type="button" onClick={() => onSetLang(l)} className={lang === l ? cx.chipActive : cx.chipNeutral}>{l.toUpperCase()}</button>
                 ))}
               </div>
             </div>
-            <div className="mt-2 flex items-center justify-between">
+            <div className="flex items-center justify-between">
               <span>{t.settings.theme}</span>
-              <StatusBadge variant="neutral" label={t.settings.dark} dot={false} />
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => onSetTheme('dark')} className={theme === 'dark' ? cx.chipActive : cx.chipNeutral}>{t.settings.dark}</button>
+                <button type="button" onClick={() => onSetTheme('light')} className={theme === 'light' ? cx.chipActive : cx.chipNeutral}>{t.settings.light}</button>
+              </div>
             </div>
           </Section>
         </div>

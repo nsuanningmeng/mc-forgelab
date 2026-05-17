@@ -15,10 +15,6 @@ function serializeProvider(row: Record<string, unknown>) {
   };
 }
 
-// Validate provider input. `mode` controls which fields are required.
-//   create: displayName, baseUrl, apiKey, defaultModel all required.
-//   update: each field optional; whatever is provided must be valid.
-// Returns an error message string on failure, or null on success.
 function validateProviderInput(body: {
   displayName?: unknown;
   baseUrl?: unknown;
@@ -62,7 +58,6 @@ function validateProviderInput(body: {
 }
 
 export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
-  // List providers — never returns api_key_encrypted; only hasKey: boolean.
   app.get("/api/ai/providers", async () => {
     const rows = ctx.storage.backend.all<Record<string, unknown>>(
       "SELECT id, display_name, type, base_url, default_model, enabled, api_key_encrypted, created_at FROM ai_providers ORDER BY created_at"
@@ -70,7 +65,6 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
     return rows.map(serializeProvider);
   });
 
-  // Create a new provider.
   app.post<{ Body: {
     displayName?: string;
     baseUrl?: string;
@@ -93,6 +87,17 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
           timeoutMs: body.timeoutMs,
           enabled: body.enabled !== false,
         });
+        ctx.auditor.log({
+          eventType: "provider.create",
+          entityType: "provider",
+          entityId: created.id,
+          payload: {
+            displayName: created.displayName,
+            baseUrl: created.baseUrl,
+            defaultModel: created.defaultModel,
+            enabled: created.enabled
+          }
+        });
         const row = ctx.storage.backend.get<Record<string, unknown>>(
           "SELECT id, display_name, type, base_url, default_model, enabled, api_key_encrypted, created_at FROM ai_providers WHERE id = ?",
           [created.id]
@@ -105,7 +110,6 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
     }
   );
 
-  // Partial update — apiKey omitted leaves stored key untouched (enables enable/disable + rename without re-typing the key).
   app.patch<{ Params: { id: string }; Body: {
     displayName?: string;
     baseUrl?: string;
@@ -120,12 +124,22 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
       const err = validateProviderInput(body, "update");
       if (err) return reply.status(400).send({ error: err });
       try {
-        // Normalize trimmed strings before forwarding.
         const payload: typeof body = { ...body };
         if (typeof payload.displayName === "string") payload.displayName = payload.displayName.trim();
         if (typeof payload.baseUrl === "string") payload.baseUrl = payload.baseUrl.trim();
         if (typeof payload.defaultModel === "string") payload.defaultModel = payload.defaultModel.trim();
-        ctx.providers.updateProvider(req.params.id, payload);
+        const updated = ctx.providers.updateProvider(req.params.id, payload);
+        ctx.auditor.log({
+          eventType: "provider.update",
+          entityType: "provider",
+          entityId: req.params.id,
+          payload: {
+            displayName: updated.displayName,
+            baseUrl: updated.baseUrl,
+            defaultModel: updated.defaultModel,
+            enabled: updated.enabled
+          }
+        });
         const row = ctx.storage.backend.get<Record<string, unknown>>(
           "SELECT id, display_name, type, base_url, default_model, enabled, api_key_encrypted, created_at FROM ai_providers WHERE id = ?",
           [req.params.id]
@@ -143,6 +157,7 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
     async (req, reply) => {
       try {
         ctx.providers.deleteProvider(req.params.id);
+        ctx.auditor.log({ eventType: "provider.delete", entityType: "provider", entityId: req.params.id });
         return reply.status(204).send();
       } catch (e) {
         if (e instanceof AppError) return reply.status(e.httpStatus).send({ error: e.messageEn, code: e.code });
@@ -151,7 +166,6 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
     }
   );
 
-  // Test connectivity for a saved provider.
   app.post<{ Params: { id: string } }>(
     "/api/ai/providers/:id/test",
     async (req, reply) => {
@@ -165,7 +179,6 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
     }
   );
 
-  // Workflows
   app.get("/api/ai/workflows", async () => {
     return ctx.storage.backend.all("SELECT id, name, mode, builtin, created_at FROM ai_workflows ORDER BY builtin DESC, created_at");
   });
@@ -174,7 +187,6 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
     return ctx.storage.backend.all("SELECT * FROM ai_workflow_runs ORDER BY started_at DESC LIMIT 50");
   });
 
-  // SSE: workflow run stream
   app.get<{ Params: { runId: string } }>(
     "/api/ai/workflow-runs/:runId/stream",
     async (req, reply) => {

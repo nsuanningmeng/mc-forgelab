@@ -1,148 +1,119 @@
-// Dashboard — workbench overview
 window.MCFL = window.MCFL || {};
 (function () {
   const { useState, useEffect } = React;
-  const { cx, api, Icon, MetricCard, PageHeader, EmptyState, StatusBadge, ProjectCard } = window.MCFL;
+  const { cx, api, MetricCard, ProjectCard, EmptyState, ActivityPanel, Icon } = window.MCFL;
 
-  function Dashboard({ t, onSelectProject, onNavigate }) {
-    const [projects, setProjects] = useState(null);
-    const [workflows, setWorkflows] = useState(null);
-    const [runs, setRuns] = useState(null);
-    const [providers, setProviders] = useState(null);
-    const [health, setHealth] = useState(null);
+  function Dashboard({ t, onSelectProject }) {
+    const [stats, setStats] = useState({ projects: 0, workflows: 0, runs: 0, artifacts: 0 });
+    const [projects, setProjects] = useState([]);
+    const [runs, setRuns] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-      api.projects().then(setProjects).catch(() => setProjects([]));
-      api.workflows().then(setWorkflows).catch(() => setWorkflows([]));
-      api.workflowRuns().then(setRuns).catch(() => setRuns([]));
-      api.providers().then(setProviders).catch(() => setProviders([]));
-      api.health().then(setHealth).catch(() => setHealth(null));
+      Promise.all([
+        api.projects(),
+        api.workflows(),
+        api.workflowRuns(),
+        api.health(),
+      ]).then(([p, wf, runs, health]) => {
+        setProjects(p);
+        setRuns(runs);
+        setStats({
+          projects: p.length,
+          workflows: wf.length,
+          runs: runs.length,
+          artifacts: 0 // Fetching total artifacts might be heavy, leave as 0 for now
+        });
+      }).catch(err => {
+        console.error("Dashboard load failed", err);
+      }).finally(() => setLoading(false));
     }, []);
 
-    const enabledProviders = (providers || []).filter((p) => p.enabled);
-    const providerOk = enabledProviders.length > 0;
-
     return (
-      <div className="p-6 max-w-[1600px] mx-auto">
-        <PageHeader
-          title={t.dash.title}
-          subtitle={t.dash.subtitle}
-          badge={<StatusBadge variant="warn" label={t.earlyDev} />}
-          actions={
-            <>
-              <button onClick={() => onNavigate("projects")} className={cx.btnPrimary}>
-                <Icon name="plus" className="w-3.5 h-3.5" />
-                {t.dash.newProject}
-              </button>
-              <button onClick={() => onNavigate("settings")} className={cx.btnSecondary}>
-                <Icon name="cog" className="w-3.5 h-3.5" />
-                {t.dash.configureProvider}
-              </button>
-            </>
-          }
-        />
+      <div className="p-6 max-w-[1600px] mx-auto space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard title={t.dash.mProjects} value={stats.projects} icon="folder" />
+          <MetricCard title={t.dash.mWorkflows} value={stats.workflows} icon="cpu" />
+          <MetricCard title={t.dash.mRuns} value={stats.runs} icon="activity" />
+          <MetricCard title={t.dash.mArtifacts} value={stats.artifacts} icon="package" />
+        </div>
 
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          <MetricCard
-            label={t.dash.mProjects}
-            value={projects ? projects.length : "—"}
-            icon="folder"
-            loading={projects === null}
-          />
-          <MetricCard
-            label={t.dash.mWorkflows}
-            value={workflows ? workflows.length : "—"}
-            icon="git"
-            loading={workflows === null}
-          />
-          <MetricCard
-            label={t.dash.mRuns}
-            value={runs ? runs.length : "—"}
-            icon="terminal"
-            tone="info"
-            loading={runs === null}
-          />
-          <MetricCard
-            label={t.dash.providerStatus}
-            value={providerOk ? enabledProviders.length : 0}
-            hint={providerOk ? "enabled" : "none configured"}
-            icon="cpu"
-            tone={providerOk ? "success" : "warn"}
-            loading={providers === null}
-          />
-        </section>
-
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-6">
-          <div className={cx.j(cx.card, cx.cardPad)}>
-            <div className={cx.sectionTitle}>{t.dash.service}</div>
-            <div className={cx.j("text-2xl font-semibold", health?.ok ? "text-mc" : "text-danger", cx.mono)}>
-              {health == null ? "—" : health.ok ? t.dash.running : t.dash.offline}
-            </div>
-            <div className={cx.j("text-2xs text-tx3 mt-1", cx.mono)}>
-              {t.dash.version} {health?.version || "—"}
-            </div>
-          </div>
-          <div className={cx.j(cx.card, cx.cardPad)}>
-            <div className={cx.sectionTitle}>{t.dash.toolchainStatus}</div>
-            <div className="flex items-center gap-2 mt-1">
-              <StatusBadge variant="planned" label={t.planned} />
-            </div>
-            <div className="text-2xs text-tx3 mt-1">JDK / Gradle / Maven detection planned.</div>
-          </div>
-          <div className={cx.j(cx.card, cx.cardPad)}>
-            <div className={cx.sectionTitle}>{t.dash.quickStart}</div>
-            <div className="space-y-1.5 mt-1">
-              <button onClick={() => onNavigate("projects")} className={cx.j(cx.btnSecondary, "w-full justify-start")}>
-                <Icon name="plus" className="w-3.5 h-3.5" /> {t.dash.newProject}
-              </button>
-              <a
-                href="https://github.com/nsuanningmeng/mc-forgelab"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cx.j(cx.btnGhost, "w-full justify-start")}
-              >
-                <Icon name="external" className="w-3.5 h-3.5" /> {t.dash.viewGitHub}
-              </a>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <div>
-            <div className={cx.sectionTitle}>{t.dash.recentProjects}</div>
-            {projects === null ? (
-              <div className={cx.j(cx.card, "px-4 py-8 text-center text-tx3 text-sm")}>{t.common.loading}…</div>
-            ) : projects.length === 0 ? (
-              <EmptyState icon="folder" title={t.dash.noProjects} variant="early-dev" />
-            ) : (
-              <div className="space-y-1.5">
-                {projects.slice(0, 6).map((p) => (
-                  <ProjectCard key={p.id} project={p} onSelect={onSelectProject} />
-                ))}
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
+          <div className="space-y-6">
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className={cx.sectionTitle}>{t.dash.recentProjects}</h2>
+                <button className="text-2xs text-mc hover:underline font-semibold uppercase tracking-wider">{t.common.details} →</button>
               </div>
-            )}
+              {projects.length === 0 ? (
+                <EmptyState icon="folder" title={t.dash.noProjects} />
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {projects.slice(0, 4).map(p => (
+                    <ProjectCard key={p.id} project={p} onSelect={onSelectProject} />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <h2 className={cx.sectionTitle}>{t.dash.recentRuns}</h2>
+              {runs.length === 0 ? (
+                <EmptyState icon="activity" title={t.dash.noRuns} variant="neutral" />
+              ) : (
+                <div className={cx.tableWrap}>
+                  <table className="w-full text-left">
+                    <thead className={cx.tableHead}>
+                      <tr>
+                        <th className={cx.tableTh}>{t.common.projects}</th>
+                        <th className={cx.tableTh}>{t.wf.mode}</th>
+                        <th className={cx.tableTh}>{t.wf.status}</th>
+                        <th className={cx.tableTh}>{t.wf.startedAt}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {runs.slice(0, 5).map(r => (
+                        <tr key={r.id} className={cx.tableRow}>
+                          <td className={cx.tableTd}>{r.projectName}</td>
+                          <td className={cx.tableTd}><span className="text-2xs uppercase text-tx3">{r.mode}</span></td>
+                          <td className={cx.tableTd}>
+                            <div className="flex items-center gap-1.5">
+                              <div className={`w-1.5 h-1.5 rounded-full ${r.status === 'success' ? 'bg-mc' : r.status === 'running' ? 'bg-blue animate-pulse' : 'bg-danger'}`} />
+                              <span className="text-xs">{r.status}</span>
+                            </div>
+                          </td>
+                          <td className={cx.tableTd}><span className="text-tx3 tabular-nums">{new Date(r.startedAt).toLocaleString()}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           </div>
-          <div>
-            <div className={cx.sectionTitle}>{t.dash.recentRuns}</div>
-            {runs === null ? (
-              <div className={cx.j(cx.card, "px-4 py-8 text-center text-tx3 text-sm")}>{t.common.loading}…</div>
-            ) : runs.length === 0 ? (
-              <EmptyState icon="terminal" title={t.dash.noRuns} variant="early-dev" />
-            ) : (
-              <div className={cx.j(cx.card, "divide-y divide-border")}>
-                {runs.slice(0, 6).map((r) => (
-                  <div key={r.id} className="px-3 py-2 flex items-center gap-3">
-                    <StatusBadge variant={window.MCFL.statusVariant(r.status)} label={r.status || "pending"} />
-                    <span className={cx.j("text-sm text-tx1 truncate flex-1", cx.mono)}>{r.workflow_id || r.id}</span>
-                    <span className={cx.j("text-2xs text-tx3", cx.mono)}>
-                      {(r.started_at || "").slice(0, 19).replace("T", " ")}
-                    </span>
-                  </div>
-                ))}
+
+          <aside className="space-y-6">
+            <ActivityPanel t={t} />
+            
+            <div className={cx.j(cx.card, "p-4")}>
+              <h3 className={cx.sectionTitle}>{t.dash.quickStart}</h3>
+              <div className="space-y-2 mt-3">
+                <button className={cx.j(cx.btnSecondary, "w-full justify-start gap-3 h-10 px-4")}>
+                  <Icon name="plus" className="w-4 h-4 text-mc" />
+                  <span>{t.dash.newProject}</span>
+                </button>
+                <button className={cx.j(cx.btnSecondary, "w-full justify-start gap-3 h-10 px-4")}>
+                  <Icon name="cpu" className="w-4 h-4 text-blue" />
+                  <span>{t.dash.configureProvider}</span>
+                </button>
+                <button className={cx.j(cx.btnSecondary, "w-full justify-start gap-3 h-10 px-4")}>
+                  <Icon name="github" className="w-4 h-4 text-tx2" />
+                  <span>{t.dash.viewGitHub}</span>
+                </button>
               </div>
-            )}
-          </div>
-        </section>
+            </div>
+          </aside>
+        </div>
       </div>
     );
   }

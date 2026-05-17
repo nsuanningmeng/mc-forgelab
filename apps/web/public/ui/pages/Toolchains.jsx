@@ -1,97 +1,83 @@
-// Toolchains — live JDK detection via /api/toolchains/doctor
 window.MCFL = window.MCFL || {};
 (function () {
-  const { useState, useEffect, useCallback } = React;
-  const { cx, api, Icon, PageHeader, EmptyState, StatusBadge } = window.MCFL;
-
-  // Group doctor results by Java version (doctor() returns one entry per version)
-  const JAVA_VERSIONS = [8, 11, 17, 21];
+  const { useState, useEffect } = React;
+  const { cx, api, PageHeader, Icon, StatusBadge } = window.MCFL;
 
   function Toolchains({ t }) {
     const [results, setResults] = useState(null);
-    const [error, setError] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
 
-    const reload = useCallback(() => {
+    const refresh = () => {
       setLoading(true);
-      setError(null);
-      api.toolchainsDoctor()
-        .then((res) => setResults((res && res.results) || []))
-        .catch((err) => setError(err.message || String(err)))
-        .finally(() => setLoading(false));
-    }, []);
+      api.toolchainsDoctor().then(setResults).finally(() => setLoading(false));
+    };
 
-    useEffect(reload, [reload]);
-
-    // The current doctor() implementation only checks Java. Build version -> status map.
-    const versionMap = new Map();
-    if (Array.isArray(results)) {
-      let i = 0;
-      for (const v of JAVA_VERSIONS) {
-        versionMap.set(v, results[i] || null);
-        i += 1;
-      }
-    }
+    useEffect(refresh, []);
 
     return (
-      <div className="p-6 max-w-[1200px] mx-auto">
+      <div className="p-6 max-w-[1000px] mx-auto space-y-6">
         <PageHeader
           title={t.tc.title}
           subtitle={t.tc.subtitle}
-          actions={
-            <button onClick={reload} disabled={loading} className={cx.btnSecondary}>
-              <Icon name="refresh" className="w-3.5 h-3.5" />
-              {loading ? t.tc.detecting : t.tc.refresh}
+          action={
+            <button onClick={refresh} disabled={loading} className={cx.btnSecondary}>
+              <Icon name="refresh" className={loading ? "animate-spin" : ""} />
+              {t.tc.refresh}
             </button>
           }
         />
 
-        {error && (
-          <div className="mb-4 text-xs text-danger bg-danger/5 border border-danger/30 rounded-md px-3 py-2">
-            {error}
-          </div>
-        )}
+        {loading && !results ? (
+          <div className="py-20 text-center text-tx3">{t.tc.detecting}</div>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-elevated/30 border border-border/50 rounded-md p-4 text-xs text-tx2">
+              <Icon name="info" className="inline w-3.5 h-3.5 mr-2 text-blue" />
+              {t.tc.hint}
+            </div>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-          {JAVA_VERSIONS.map((v) => {
-            const r = versionMap.get(v);
-            const installed = r && r.installed;
-            return (
-              <div key={v} className={cx.j(cx.card, "px-4 py-3.5")}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-tx1">Java {v}</span>
-                  <StatusBadge
-                    variant={installed ? "success" : "warn"}
-                    label={installed ? t.tc.installed : t.tc.missing}
-                  />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <section className={cx.j(cx.card, "overflow-hidden")}>
+                <div className="px-4 py-3 border-b border-border bg-elevated/20 font-semibold text-tx1">
+                  Java Development Kits (JDK)
                 </div>
-                <div className="text-2xs text-tx2 mb-1">{t.tc.versionLabel}</div>
-                <div className={cx.j("text-xs text-tx1 break-all min-h-[1.2em]", cx.mono)}>
-                  {r && r.version ? r.version : <span className="text-tx3">—</span>}
+                <div className="divide-y divide-border">
+                  {results?.java?.length === 0 ? (
+                    <div className="p-4 text-tx3 italic">{t.tc.noResults}</div>
+                  ) : (
+                    results?.java?.map((v) => (
+                      <div key={v.version} className="p-4 flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-tx1">JDK {v.version}</div>
+                          <div className="text-2xs text-tx3 font-mono">{v.path}</div>
+                        </div>
+                        <StatusBadge variant="success" label={t.tc.installed} />
+                      </div>
+                    ))
+                  )}
                 </div>
-                {r && r.issues && r.issues.length > 0 && (
-                  <div className="mt-2">
-                    <div className="text-2xs text-tx2 mb-1">{t.tc.issues}</div>
-                    <ul className="text-2xs text-warn space-y-0.5 list-disc list-inside">
-                      {r.issues.map((iss, idx) => (
-                        <li key={idx} className="break-words">{iss}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </section>
+              </section>
 
-        <p className="mt-4 text-2xs text-tx3 flex items-start gap-2">
-          <Icon name="info" className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-          <span>{t.tc.hint}</span>
-        </p>
-
-        {results !== null && results.length === 0 && (
-          <div className="mt-6">
-            <EmptyState icon="wrench" title={t.tc.noResults} />
+              <section className={cx.j(cx.card, "overflow-hidden")}>
+                <div className="px-4 py-3 border-b border-border bg-elevated/20 font-semibold text-tx1">
+                  Build Tools
+                </div>
+                <div className="divide-y divide-border">
+                  {["Gradle", "Maven"].map((tool) => {
+                    const found = results?.tools?.find(t => t.name.toLowerCase() === tool.toLowerCase());
+                    return (
+                      <div key={tool} className="p-4 flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-tx1">{tool}</div>
+                          <div className="text-2xs text-tx3">{found ? found.version : t.tc.missing}</div>
+                        </div>
+                        <StatusBadge variant={found ? "success" : "neutral"} label={found ? t.tc.installed : t.tc.missing} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            </div>
           </div>
         )}
       </div>

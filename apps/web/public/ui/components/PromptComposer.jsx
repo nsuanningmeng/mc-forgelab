@@ -1,4 +1,3 @@
-// PromptComposer — multi-control prompt input (UI only; submit is placeholder)
 window.MCFL = window.MCFL || {};
 (function () {
   const { useState } = React;
@@ -24,7 +23,7 @@ window.MCFL = window.MCFL || {};
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-2xs uppercase tracking-wider text-tx2 font-semibold">
             <Icon name="spark" className="w-3.5 h-3.5" />
-            <span>Prompt</span>
+            <span>{t.ws.prompt}</span>
           </div>
           <StatusBadge variant="warn" label={t.earlyDev} />
         </div>

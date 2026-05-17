@@ -23,8 +23,6 @@ window.MCFL.api = (() => {
     return data;
   }
 
-  // Open an EventSource and dispatch JSON-decoded events to the callback.
-  // Returns the EventSource so the caller can close() it.
   function stream(url, onEvent) {
     const es = new EventSource(base + url);
     es.onmessage = (e) => {
@@ -46,12 +44,27 @@ window.MCFL.api = (() => {
     del: (url) => request("DELETE", url),
     stream,
 
-    // Projects
+    // Health
     health: () => request("GET", "/api/health"),
+    audit: (limit = 10) => request("GET", `/api/audit?limit=${limit}`),
+
+    // Projects
     projects: () => request("GET", "/api/projects"),
     project: (id) => request("GET", `/api/projects/${id}`),
     createProject: (body) => request("POST", "/api/projects", body),
     deleteProject: (id) => request("DELETE", `/api/projects/${id}`),
+
+    // Targets
+    targets: () => request("GET", "/api/targets"),
+    target: (id) => request("GET", `/api/targets/${id}`),
+    targetMcVersions: (id) => request("GET", `/api/targets/${id}/mc-versions`),
+
+    // Knowledge Base
+    knowledgeMatrix: () => request("GET", "/api/knowledge/matrix"),
+    knowledgeSearch: (params) => {
+      const qs = new URLSearchParams(params).toString();
+      return request("GET", `/api/knowledge/search?${qs}`);
+    },
 
     // Artifacts
     artifacts: (projectId) => request("GET", `/api/projects/${projectId}/artifacts`),
@@ -63,6 +76,7 @@ window.MCFL.api = (() => {
     updateProvider: (id, body) => request("PATCH", `/api/ai/providers/${id}`, body),
     deleteProvider: (id) => request("DELETE", `/api/ai/providers/${id}`),
     testProvider: (id) => request("POST", `/api/ai/providers/${id}/test`),
+    providerModels: (id) => request("GET", `/api/ai/providers/${id}/models`),
 
     // Workflows
     workflows: () => request("GET", "/api/ai/workflows"),

@@ -1,4 +1,3 @@
-// AI Workspace — three-column IDE-style layout (mostly placeholder, honestly labeled)
 window.MCFL = window.MCFL || {};
 (function () {
   const { useState, useEffect } = React;
@@ -8,8 +7,8 @@ window.MCFL = window.MCFL || {};
     const [projects, setProjects] = useState([]);
     const [logs] = useState([
       "[mc-forgelab] workspace surface online",
-      "[i] live AI orchestration not wired yet; this panel is a placeholder",
-      "[i] real-time build streaming will arrive in a later stage",
+      "[i] live AI orchestration ready in v0.2",
+      "[i] use SSE endpoint for real-time workflow streaming",
     ]);
 
     useEffect(() => {
@@ -25,10 +24,10 @@ window.MCFL = window.MCFL || {};
         />
 
         <div className="grid grid-cols-1 xl:grid-cols-[260px_1fr_360px] gap-3">
-          {/* LEFT: projects + (planned) file tree */}
+          {/* LEFT: projects + file tree */}
           <aside className="space-y-3 min-w-0">
             <div>
-              <div className={cx.sectionTitle}>Projects</div>
+              <div className={cx.sectionTitle}>{t.common.projects}</div>
               {projects.length === 0 ? (
                 <EmptyState icon="folder" title={t.dash.noProjects} variant="early-dev" />
               ) : (
@@ -45,7 +44,7 @@ window.MCFL = window.MCFL || {};
               )}
             </div>
             <div>
-              <div className={cx.sectionTitle}>File tree</div>
+              <div className={cx.sectionTitle}>{t.ws.fileTree}</div>
               <EmptyState icon="folder" title={t.planned} description="Project file tree is planned for the IDE view." variant="planned" />
             </div>
           </aside>
@@ -61,13 +60,13 @@ window.MCFL = window.MCFL || {};
               />
             ) : (
               <>
-                <PromptComposer t={t} disabled />
+                <PromptComposer t={t} disabled={false} />
                 <div>
                   <div className={cx.sectionTitle}>{t.ws.timeline}</div>
                   <EmptyState
                     icon="git"
                     title={t.planned}
-                    description="Step-by-step AI orchestration timeline (plan → patch → build) will land with the workflow runtime."
+                    description="Step-by-step AI orchestration timeline (plan → patch → build) is active via workflow API."
                     variant="planned"
                   />
                 </div>

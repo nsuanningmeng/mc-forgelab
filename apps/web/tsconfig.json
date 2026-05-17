@@ -11,7 +11,10 @@
     { "path": "../../packages/ai-workflow-engine" },
     { "path": "../../packages/artifact-manager" },
     { "path": "../../packages/build-orchestrator" },
+    { "path": "../../packages/toolchain-manager" },
     { "path": "../../packages/template-engine" },
-    { "path": "../../packages/project-model" }
+    { "path": "../../packages/project-model" },
+    { "path": "../../packages/knowledge-base" },
+    { "path": "../../packages/target-registry" }
   ]
 }

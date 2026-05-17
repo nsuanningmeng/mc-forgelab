@@ -31,7 +31,6 @@ function serializeBuild(b: {
 }
 
 export async function registerBuildRoutes(app: FastifyInstance, ctx: AppContext) {
-  // List builds for a project (in-memory only; not persisted across restarts)
   app.get<{ Params: { id: string } }>(
     "/api/projects/:id/builds",
     async (req, reply) => {
@@ -43,8 +42,6 @@ export async function registerBuildRoutes(app: FastifyInstance, ctx: AppContext)
     }
   );
 
-  // Start a new build for a project. Returns 202 with build descriptor.
-  // 409 if a build for this project is already running.
   app.post<{ Params: { id: string }; Body?: { javaVersion?: 8 | 11 | 17 | 21 } }>(
     "/api/projects/:id/builds",
     async (req, reply) => {
@@ -71,11 +68,17 @@ export async function registerBuildRoutes(app: FastifyInstance, ctx: AppContext)
         logsDir: join(workspaceRoot, "logs"),
       });
 
+      ctx.auditor.log({
+        eventType: "build.start",
+        entityType: "build",
+        entityId: entry.buildId,
+        payload: { projectId: req.params.id, buildId: entry.buildId }
+      });
+
       return reply.status(202).send(serializeBuild(entry));
     }
   );
 
-  // Get a specific build descriptor with current state and full log lines.
   app.get<{ Params: { id: string; buildId: string } }>(
     "/api/projects/:id/builds/:buildId",
     async (req, reply) => {
@@ -87,7 +90,6 @@ export async function registerBuildRoutes(app: FastifyInstance, ctx: AppContext)
     }
   );
 
-  // Live SSE stream of build events.
   app.get<{ Params: { id: string; buildId: string } }>(
     "/api/projects/:id/builds/:buildId/stream",
     async (req, reply) => {
@@ -103,9 +105,6 @@ export async function registerBuildRoutes(app: FastifyInstance, ctx: AppContext)
         "X-Accel-Buffering": "no",
       });
 
-      // Guard every write — the underlying socket may already be closed
-      // (slow client disconnect, server shutdown). Stop emitting events on
-      // first failed write and clean up.
       let closed = false;
       const safeWrite = (chunk: string): boolean => {
         if (closed || reply.raw.writableEnded || reply.raw.destroyed) {
@@ -123,14 +122,11 @@ export async function registerBuildRoutes(app: FastifyInstance, ctx: AppContext)
         safeWrite(`data: ${JSON.stringify(event)}\n\n`);
       };
 
-      // Replay buffered lines so a late subscriber doesn't miss earlier output.
-      // Cap replay to the last 1000 lines to limit synchronous burst on huge logs.
       const replayStart = Math.max(0, entry.lines.length - 1000);
       for (let i = replayStart; i < entry.lines.length; i++) {
         if (closed) break;
         send({ type: "log", line: entry.lines[i] });
       }
-      // Send current status snapshot.
       send({
         type: "status",
         status: entry.status,
@@ -138,7 +134,6 @@ export async function registerBuildRoutes(app: FastifyInstance, ctx: AppContext)
         finishedAt: entry.finishedAt,
       });
 
-      // If already finished, close immediately.
       if (entry.status !== "running" && entry.status !== "queued") {
         send({ type: "done" });
         try { reply.raw.end(); } catch { /* ignore */ }
@@ -153,7 +148,6 @@ export async function registerBuildRoutes(app: FastifyInstance, ctx: AppContext)
         }
       });
 
-      // Keep-alive ping every 25 s.
       const ping = setInterval(() => {
         if (closed) { clearInterval(ping); return; }
         safeWrite(`: ping\n\n`);
@@ -169,13 +163,10 @@ export async function registerBuildRoutes(app: FastifyInstance, ctx: AppContext)
       req.raw.on("close", cleanup);
       req.raw.on("error", cleanup);
 
-      // Note: returning here without explicit Promise to keep Fastify from
-      // sending a body. The raw response is owned by us until cleanup runs.
       return reply;
     }
   );
 
-  // Cancel a running build (kills the child Gradle process via AbortSignal).
   app.delete<{ Params: { id: string; buildId: string } }>(
     "/api/projects/:id/builds/:buildId",
     async (req, reply) => {

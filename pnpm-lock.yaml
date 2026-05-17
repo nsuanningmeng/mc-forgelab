@@ -166,12 +166,18 @@ importers:
       '@mc-forgelab/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@mc-forgelab/knowledge-base':
+        specifier: workspace:*
+        version: link:../../packages/knowledge-base
       '@mc-forgelab/project-model':
         specifier: workspace:*
         version: link:../../packages/project-model
       '@mc-forgelab/storage':
         specifier: workspace:*
         version: link:../../packages/storage
+      '@mc-forgelab/target-registry':
+        specifier: workspace:*
+        version: link:../../packages/target-registry
       '@mc-forgelab/template-engine':
         specifier: workspace:*
         version: link:../../packages/template-engine
@@ -437,6 +443,10 @@ importers:
         version: 2.1.9(@types/node@22.19.19)
 
   packages/knowledge-base:
+    dependencies:
+      '@mc-forgelab/storage':
+        specifier: workspace:*
+        version: link:../storage
     devDependencies:
       rimraf:
         specifier: ^6.0.1

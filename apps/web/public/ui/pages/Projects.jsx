@@ -1,164 +1,114 @@
-// Projects — list + create form
 window.MCFL = window.MCFL || {};
 (function () {
   const { useState, useEffect } = React;
-  const { cx, api, Icon, PageHeader, EmptyState, StatusBadge, ProjectCard } = window.MCFL;
+  const { cx, api, PageHeader, EmptyState, ProjectCard, Icon, MCVersionPicker } = window.MCFL;
 
-  const TARGETS = ["paper", "spigot", "purpur", "folia", "velocity", "bungeecord", "fabric", "forge", "neoforge", "quilt"];
-
-  function Projects({ t, onSelect, selectedProject }) {
-    const [projects, setProjects] = useState(null);
-    const [showForm, setShowForm] = useState(false);
-    const [form, setForm] = useState({
-      name: "",
-      targetId: "paper",
-      minecraftVersion: "1.20.1",
-      packageName: "com.example.plugin",
-    });
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+  function Projects({ t, onSelectProject }) {
+    const [projects, setProjects] = useState([]);
+    const [targets, setTargets] = useState([]);
+    const [showNew, setShowNew] = useState(false);
+    const [loading, setLoading] = useState(true);
+    
+    // Form state
+    const [form, setForm] = useState({ name: '', target: '', mcVersion: '', packageName: 'com.example.plugin' });
+    const [busy, setBusy] = useState(false);
 
     const reload = () => {
-      api.projects().then(setProjects).catch(() => setProjects([]));
+      setLoading(true);
+      api.projects().then(setProjects).finally(() => setLoading(false));
+      api.targets().then(setTargets).catch(() => {});
     };
+
     useEffect(reload, []);
 
-    const submit = async (e) => {
+    const handleCreate = async (e) => {
       e.preventDefault();
-      setLoading(true); setError(null);
+      setBusy(true);
       try {
-        const created = await api.createProject(form);
-        onSelect && onSelect(created);
-        setShowForm(false);
-        setForm({ name: "", targetId: "paper", minecraftVersion: "1.20.1", packageName: "com.example.plugin" });
+        await api.createProject(form);
+        setShowNew(false);
+        setForm({ name: '', target: '', mcVersion: '', packageName: 'com.example.plugin' });
         reload();
       } catch (err) {
-        setError(String(err.message || err));
+        alert(err.message);
       } finally {
-        setLoading(false);
+        setBusy(false);
       }
     };
 
+    const handleTargetChange = (val) => {
+      setForm(f => ({ ...f, target: val, mcVersion: '' }));
+    };
+
     return (
-      <div className="p-6 max-w-[1400px] mx-auto">
+      <div className="p-6 max-w-[1200px] mx-auto space-y-6">
         <PageHeader
           title={t.proj.title}
           subtitle={t.proj.subtitle}
-          actions={
-            <button onClick={() => setShowForm((v) => !v)} className={cx.btnPrimary}>
-              <Icon name="plus" className="w-3.5 h-3.5" />
-              {showForm ? t.proj.cancel : t.proj.newProject}
+          action={
+            <button onClick={() => setShowNew(true)} className={cx.btnPrimary}>
+              <Icon name="plus" className="w-4 h-4" />
+              {t.proj.newProject}
             </button>
           }
         />
 
-        {showForm && (
-          <form onSubmit={submit} className={cx.j(cx.card, "p-4 mb-4 grid grid-cols-1 md:grid-cols-2 gap-3")}>
-            <div>
-              <label className={cx.label}>{t.proj.name}</label>
-              <input
-                className={cx.input}
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="MyPlugin"
-                required
-              />
+        {showNew && (
+          <form onSubmit={handleCreate} className={cx.j(cx.card, "p-6 space-y-4 max-w-2xl mx-auto shadow-xl")}>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-bold text-tx1">{t.proj.newProject}</h2>
+              <button type="button" onClick={() => setShowNew(false)} className={cx.btnIcon}><Icon name="close" /></button>
             </div>
-            <div>
-              <label className={cx.label}>{t.proj.target}</label>
-              <select
-                className={cx.select}
-                value={form.targetId}
-                onChange={(e) => setForm((f) => ({ ...f, targetId: e.target.value }))}
-              >
-                {TARGETS.map((tg) => <option key={tg} value={tg}>{tg}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={cx.label}>{t.proj.mcVersion}</label>
-              <input
-                className={cx.input}
-                value={form.minecraftVersion}
-                onChange={(e) => setForm((f) => ({ ...f, minecraftVersion: e.target.value }))}
-                placeholder="1.20.1"
-                required
-              />
-            </div>
-            <div>
-              <label className={cx.label}>{t.proj.packageName}</label>
-              <input
-                className={cx.j(cx.input, cx.mono)}
-                value={form.packageName}
-                onChange={(e) => setForm((f) => ({ ...f, packageName: e.target.value }))}
-                placeholder="com.example.plugin"
-                required
-              />
-            </div>
-            {error && (
-              <div className="md:col-span-2 text-xs text-danger bg-danger/5 border border-danger/30 rounded-md px-3 py-2">
-                {error}
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className={cx.label}>{t.proj.name}</label>
+                <input required className={cx.input} value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="MyAwesomePlugin" />
               </div>
-            )}
-            <div className="md:col-span-2 flex justify-end gap-2">
-              <button type="button" onClick={() => setShowForm(false)} className={cx.btnGhost}>{t.proj.cancel}</button>
-              <button type="submit" disabled={loading} className={cx.btnPrimary}>
-                {loading ? t.proj.creating + "…" : t.proj.create}
+              <div className="space-y-1.5">
+                <label className={cx.label}>{t.proj.packageName}</label>
+                <input required className={cx.input} value={form.packageName} onChange={e => setForm(f => ({...f, packageName: e.target.value}))} />
+              </div>
+              <div className="space-y-1.5">
+                <label className={cx.label}>{t.proj.target}</label>
+                <select required className={cx.select} value={form.target} onChange={e => handleTargetChange(e.target.value)}>
+                  <option value="">— Select Target —</option>
+                  {targets.map(tg => (
+                    <option key={tg.id} value={tg.id}>
+                      {tg.name} {tg.stability === 'stable' ? '' : `(${tg.stability})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className={cx.label}>{t.proj.mcVersion}</label>
+                <MCVersionPicker 
+                  t={t}
+                  targetId={form.target} 
+                  value={form.mcVersion} 
+                  onChange={val => setForm(f => ({...f, mcVersion: val}))} 
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-border">
+              <button type="button" onClick={() => setShowNew(false)} className={cx.btnSecondary}>{t.proj.cancel}</button>
+              <button type="submit" disabled={busy} className={cx.btnPrimary}>
+                {busy ? t.proj.creating : t.proj.create}
               </button>
             </div>
           </form>
         )}
 
-        {projects === null ? (
-          <div className={cx.j(cx.card, "px-4 py-10 text-center text-tx3 text-sm")}>{t.common.loading}…</div>
+        {loading ? (
+          <div className="py-20 text-center text-tx3">{t.common.loading}...</div>
         ) : projects.length === 0 ? (
-          <EmptyState
-            icon="folder"
-            title={t.proj.noProjects}
-            description={t.dash.noProjects}
-            variant="early-dev"
-            action={
-              <button onClick={() => setShowForm(true)} className={cx.btnPrimary}>
-                <Icon name="plus" className="w-3.5 h-3.5" />
-                {t.proj.newProject}
-              </button>
-            }
-          />
+          <EmptyState icon="folder" title={t.proj.noProjects} />
         ) : (
-          <div className={cx.tableWrap}>
-            <table className="w-full text-sm">
-              <thead className={cx.tableHead}>
-                <tr>
-                  <th className={cx.tableTh}>{t.proj.name}</th>
-                  <th className={cx.tableTh}>{t.proj.target}</th>
-                  <th className={cx.tableTh}>{t.proj.mcVersion}</th>
-                  <th className={cx.tableTh}>{t.proj.javaVersion}</th>
-                  <th className={cx.tableTh}>{t.proj.buildTool}</th>
-                  <th className={cx.tableTh}>{t.proj.packageName}</th>
-                  <th className={cx.tableTh}>{t.proj.createdAt}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projects.map((p) => (
-                  <tr
-                    key={p.id}
-                    onClick={() => onSelect && onSelect(p)}
-                    className={cx.j(
-                      cx.tableRow,
-                      "cursor-pointer",
-                      selectedProject && selectedProject.id === p.id ? "bg-elevated/60" : ""
-                    )}
-                  >
-                    <td className={cx.j(cx.tableTd, "font-medium")}>{p.name}</td>
-                    <td className={cx.tableTd}><StatusBadge variant="neutral" label={p.target_id} dot={false} /></td>
-                    <td className={cx.j(cx.tableTd, cx.mono, "text-tx2")}>{p.minecraft_version}</td>
-                    <td className={cx.j(cx.tableTd, cx.mono, "text-tx2")}>{p.java_version}</td>
-                    <td className={cx.j(cx.tableTd, cx.mono, "text-tx2")}>{p.build_tool}</td>
-                    <td className={cx.j(cx.tableTd, cx.mono, "text-tx3 text-2xs")}>{p.package_name}</td>
-                    <td className={cx.j(cx.tableTd, cx.mono, "text-2xs text-tx2")}>{(p.created_at || "").slice(0, 10)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {projects.map(p => (
+              <ProjectCard key={p.id} project={p} onSelect={onSelectProject} />
+            ))}
           </div>
         )}
       </div>

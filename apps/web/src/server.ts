@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { openStorage, BASE_MIGRATIONS, STAGE6_MIGRATIONS } from "@mc-forgelab/storage";
 import { STAGE2_MIGRATIONS, createProviderManager } from "@mc-forgelab/ai-provider-manager";
 import { STAGE3_MIGRATIONS } from "@mc-forgelab/ai-workflow-engine";
+import { applyMigration as applyKnowledgeMigration, STAGE7_MIGRATIONS } from "@mc-forgelab/knowledge-base";
 import { createArtifactManager } from "@mc-forgelab/artifact-manager";
 import { loadConfig } from "@mc-forgelab/config";
 import { AppError } from "@mc-forgelab/app-error";
@@ -14,7 +15,11 @@ import { registerArtifactRoutes } from "./routes/artifacts.js";
 import { registerAIRoutes } from "./routes/ai.js";
 import { registerToolchainRoutes } from "./routes/toolchains.js";
 import { registerBuildRoutes } from "./routes/builds.js";
+import { registerTargetRoutes } from "./routes/targets.js";
+import { registerKnowledgeRoutes } from "./routes/knowledge.js";
+import { registerAuditRoutes } from "./routes/audit.js";
 import { createBuildRegistry } from "./lib/build-registry.js";
+import { createAuditLogger, STAGE_WEB_MIGRATIONS } from "./lib/audit.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -23,20 +28,28 @@ export async function buildApp() {
   const storage = await openStorage({
     backend: "auto",
     dbPath: cfg.paths.db,
-    migrations: [...BASE_MIGRATIONS, ...STAGE2_MIGRATIONS, ...STAGE3_MIGRATIONS, ...STAGE6_MIGRATIONS],
+    migrations: [
+      ...BASE_MIGRATIONS,
+      ...STAGE2_MIGRATIONS,
+      ...STAGE3_MIGRATIONS,
+      ...STAGE6_MIGRATIONS,
+      ...STAGE7_MIGRATIONS,
+      ...STAGE_WEB_MIGRATIONS
+    ],
   });
+  applyKnowledgeMigration(storage);
   const artifacts = createArtifactManager(storage);
   const providers = createProviderManager(storage);
   const builds = createBuildRegistry();
+  const auditor = createAuditLogger(storage);
 
   const app = Fastify({ logger: true });
   await app.register(cors, { origin: cfg.auth.enabled ? false : true });
 
-  // Security headers + optional basic auth
   app.addHook("onRequest", async (req, reply) => {
     reply.header("X-Content-Type-Options", "nosniff");
     reply.header("X-Frame-Options", "DENY");
-    if (!req.url.startsWith("/api/")) return; // static files skip auth
+    if (!req.url.startsWith("/api/")) return;
     if (!cfg.auth.enabled) return;
     const auth = req.headers.authorization ?? "";
     const [, b64] = auth.split(" ");
@@ -57,16 +70,17 @@ export async function buildApp() {
     return reply.status(500).send({ error: "Internal server error" });
   });
 
-  const ctx = { storage, artifacts, cfg, providers, builds };
+  const ctx = { storage, artifacts, cfg, providers, builds, auditor };
   await registerProjectRoutes(app, ctx);
   await registerArtifactRoutes(app, ctx);
   await registerAIRoutes(app, ctx);
   await registerToolchainRoutes(app, ctx);
   await registerBuildRoutes(app, ctx);
-  app.get("/api/health", async () => ({ ok: true, version: "0.1.2" }));
+  await registerTargetRoutes(app);
+  await registerKnowledgeRoutes(app);
+  await registerAuditRoutes(app, ctx);
+  app.get("/api/health", async () => ({ ok: true, version: "0.2.0" }));
 
-  // Cancel all running builds on server shutdown so child Gradle processes
-  // are not orphaned.
   app.addHook("onClose", async () => {
     builds.closeAll();
   });

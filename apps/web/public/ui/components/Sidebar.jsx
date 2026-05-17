@@ -1,58 +1,48 @@
-// Sidebar — primary navigation, 8 entries
 window.MCFL = window.MCFL || {};
 (function () {
-  const { cx, Icon, StatusBadge } = window.MCFL;
+  const { cx, Icon } = window.MCFL;
 
-  // [id, iconName, navKey, wired?]
-  const ITEMS = [
-    ["dashboard",  "dashboard", "dashboard",  true],
-    ["workspace",  "cpu",       "workspace",  false],
-    ["projects",   "folder",    "projects",   true],
-    ["workflows",  "git",       "workflows",  true],
-    ["builds",     "terminal",  "builds",     true],
-    ["artifacts",  "box",       "artifacts",  true],
-    ["toolchains", "wrench",    "toolchains", true],
-    ["settings",   "cog",       "settings",   true],
-  ];
+  function Sidebar({ t, activePage, onNavigate }) {
+    const items = [
+      { id: "dashboard", icon: "home", label: t.nav.dashboard },
+      { id: "workspace", icon: "spark", label: t.nav.workspace },
+      { id: "projects", icon: "folder", label: t.nav.projects },
+      { id: "builds", icon: "hammer", label: t.nav.builds },
+      { id: "artifacts", icon: "package", label: t.nav.artifacts },
+      { id: "knowledge", icon: "info", label: t.nav.knowledge },
+      { id: "toolchains", icon: "cpu", label: t.nav.toolchains },
+      { id: "settings", icon: "gear", label: t.nav.settings },
+    ];
 
-  function Sidebar({ page, onNavigate, t }) {
     return (
-      <aside className="w-56 shrink-0 border-r border-border bg-surface flex flex-col">
-        <div className="px-3 py-3 border-b border-border">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-mc/15 border border-mc/30 flex items-center justify-center">
-              <Icon name="cube" className="w-4 h-4 text-mc" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-tx1 leading-tight truncate">{t.appName}</div>
-              <div className="text-2xs text-tx3 leading-tight truncate">{t.appTagline}</div>
-            </div>
+      <aside className="w-[240px] bg-surface border-r border-border flex flex-col h-full shrink-0">
+        <div className="h-14 px-6 flex items-center border-b border-border/50">
+          <div className="w-6 h-6 bg-mc rounded flex items-center justify-center mr-3">
+            <div className="w-3 h-3 border-2 border-surface rotate-45" />
           </div>
+          <span className="font-bold text-tx1 tracking-tight">{t.appName}</span>
         </div>
 
-        <nav className="px-2 py-3 flex-1 overflow-y-auto space-y-0.5">
-          {ITEMS.map(([id, icon, key, wired]) => (
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+          {items.map((item) => (
             <button
-              key={id}
-              type="button"
-              onClick={() => onNavigate(id)}
-              className={page === id ? cx.navItemActive : cx.navItem}
+              key={item.id}
+              onClick={() => onNavigate(item.id)}
+              className={activePage === item.id || (activePage === 'project-detail' && item.id === 'projects') ? cx.navItemActive : cx.navItem}
             >
-              <Icon name={icon} className="w-4 h-4 shrink-0" />
-              <span className="flex-1 text-left truncate">{t.nav[key]}</span>
-              {!wired && (
-                <span className="text-[9px] uppercase tracking-wider text-tx3 font-semibold">
-                  planned
-                </span>
+              <Icon name={item.icon} className="w-4 h-4" />
+              <span>{item.label}</span>
+              {item.id === "workspace" && (
+                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-mc animate-pulse" />
               )}
             </button>
           ))}
         </nav>
 
-        <div className="px-3 py-2 border-t border-border">
-          <div className="flex items-center justify-between gap-2 text-2xs text-tx3">
-            <span>{t.earlyDev}</span>
-            <StatusBadge variant="warn" label="AGPL · v0.1" dot={false} />
+        <div className="p-4 border-t border-border/50">
+          <div className="bg-elevated rounded-md p-3">
+            <div className="text-2xs text-tx3 uppercase tracking-wider mb-1">Runtime Version</div>
+            <div className="text-xs font-mono text-mc">v0.2.0-beta.4</div>
           </div>
         </div>
       </aside>

@@ -27,6 +27,7 @@ window.MCFL = window.MCFL || {};
     spark:     <><P d="M12 4v6M12 14v6M4 12h6M14 12h6" /></>,
     info:      <><circle cx="12" cy="12" r="9" /><P d="M12 8h.01M11 12h1v5h1" /></>,
     file:      <><P d="M14 3H6v18h12V8z M14 3v5h5" /></>,
+    check:     <><P d="M5 12l5 5L20 7" /></>,
   };
 
   function Icon({ name, className = "w-4 h-4", title }) {

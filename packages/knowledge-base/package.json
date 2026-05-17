@@ -1,6 +1,6 @@
 {
   "name": "@mc-forgelab/knowledge-base",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -19,6 +19,9 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "clean": "rimraf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@mc-forgelab/storage": "workspace:*"
   },
   "devDependencies": {
     "rimraf": "^6.0.1",
