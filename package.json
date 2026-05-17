@@ -24,9 +24,13 @@
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
   },
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://github.com/nsuanningmeng/mc-forgelab#readme",
+  "bugs": {
+    "url": "https://github.com/nsuanningmeng/mc-forgelab/issues"
+  },
   "repository": {
     "type": "git",
-    "url": "https://example.invalid/mc-forgelab.git"
+    "url": "git+https://github.com/nsuanningmeng/mc-forgelab.git"
   }
 }
