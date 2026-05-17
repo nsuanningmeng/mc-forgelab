@@ -1,7 +1,7 @@
 window.MCFL = window.MCFL || {};
 (function () {
   const { useState, useEffect, useMemo } = React;
-  const { theme, LANGS, Sidebar, Topbar, Dashboard, Projects, Workspace, Builds, Artifacts, Toolchains, Settings, Knowledge, ProjectDetail } = window.MCFL;
+  const { theme, LANGS, ErrorBoundary, Sidebar, Topbar, Dashboard, Projects, Workspace, Builds, Artifacts, Toolchains, Settings, Knowledge, ProjectDetail } = window.MCFL;
 
   function App() {
     const [lang, setLang] = useState(localStorage.getItem('mcfl.lang') || 'zh');
@@ -57,7 +57,7 @@ window.MCFL = window.MCFL || {};
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Topbar t={t} selectedProject={selectedProject} onSetLang={handleSetLang} lang={lang} currentTheme={activeTheme} onToggleTheme={() => handleSetTheme(activeTheme === 'dark' ? 'light' : 'dark')} />
           <div className="flex-1 overflow-y-auto">
-            {renderPage()}
+            <ErrorBoundary>{renderPage()}</ErrorBoundary>
           </div>
         </main>
       </div>
