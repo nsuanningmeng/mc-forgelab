@@ -68,7 +68,7 @@ function renderPaperPlugin(spec: ProjectSpec): RenderedFile[] {
 
   return [
     { relativePath: "build.gradle.kts", content: buildGradle(pkg, mc, java, paperApiVersion) },
-    { relativePath: "settings.gradle.kts", content: `rootProject.name = "${spec.slug}"\n` },
+    { relativePath: "settings.gradle.kts", content: `rootProject.name = "${escKotlin(spec.slug ?? spec.name)}"\n` },
     { relativePath: "gradle/wrapper/gradle-wrapper.properties", content: gradleWrapper(gradleVersion) },
     { relativePath: "src/main/resources/plugin.yml", content: pluginYml(pluginName, mainClass, version, desc, author, f) },
     { relativePath: "src/main/resources/config.yml", content: f.enableConfig ? defaultConfig() : "" },
@@ -146,6 +146,13 @@ ${listenerBody}${cmdBody}}
 function toPascalCase(s: string): string {
   return s.replace(/(?:^|[-_\s])(\w)/g, (_, c: string) => c.toUpperCase()).replace(/[^a-zA-Z0-9]/g, "");
 }
+
+/** Escape a string for safe embedding in Kotlin/Groovy string literals */
+function escKotlin(s: string): string { return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "\\$"); }
+/** Escape a string for safe embedding in YAML scalar values */
+function escYaml(s: string): string { return s.replace(/['"\\:\n\r]/g, (c) => `\\${c}`); }
+/** Strip non-identifier chars for Java package/class names */
+function safeId(s: string): string { return s.replace(/[^a-zA-Z0-9._-]/g, "_"); }
 
 function renderFabricMod(spec: ProjectSpec): RenderedFile[] {
   const pkg = spec.packageName;

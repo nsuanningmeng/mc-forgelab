@@ -4,6 +4,17 @@ import type {
   ModelInfo, ConnectionTestResult, ModelCapabilities
 } from "./types.js";
 
+/** Reject private/loopback/link-local IPs to prevent SSRF */
+function validateBaseUrl(url: string): void {
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { throw new AppError(ErrorCode.AI_PROVIDER_CONNECT_FAILED, { details: { reason: "invalid URL" } }); }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new AppError(ErrorCode.AI_PROVIDER_CONNECT_FAILED, { details: { reason: "only http/https allowed" } });
+  const host = parsed.hostname;
+  if (/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::1|localhost$)/i.test(host) && process.env.MC_FORGELAB_ALLOW_LOCAL_PROVIDERS !== "true") {
+    throw new AppError(ErrorCode.AI_PROVIDER_CONNECT_FAILED, { details: { reason: "private/loopback addresses blocked (set MC_FORGELAB_ALLOW_LOCAL_PROVIDERS=true to allow)" } });
+  }
+}
+
 interface OpenAIModel { id: string; }
 interface OpenAIChoice { message?: { content?: string }; delta?: { content?: string }; finish_reason?: string; }
 interface OpenAIResponse { choices: OpenAIChoice[]; usage?: { prompt_tokens: number; completion_tokens: number }; model: string; }
@@ -18,6 +29,7 @@ export interface OpenAICompatConfig {
 }
 
 export function createOpenAICompatAdapter(cfg: OpenAICompatConfig): ProviderAdapter {
+  validateBaseUrl(cfg.baseUrl);
   const base = cfg.baseUrl.replace(/\/$/, "");
   const timeout = cfg.timeoutMs ?? 60_000;
 

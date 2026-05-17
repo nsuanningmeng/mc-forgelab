@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { createReadStream, createWriteStream, mkdirSync, statSync, existsSync, rmSync, readdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { createReadStream, createWriteStream, mkdirSync, statSync, existsSync, rmSync, readdirSync, writeFileSync, realpathSync } from "node:fs";
+import { join, relative } from "node:path";
 import { randomUUID } from "node:crypto";
 import { pipeline } from "node:stream/promises";
 import { createGzip } from "node:zlib";
@@ -138,13 +138,22 @@ export function createArtifactManager(storage: Storage) {
       const record = await this.get(artifactId);
       if (!record.downloadable) throw new AppError(ErrorCode.ARTIFACT_NOT_FOUND, { details: { artifactId, reason: "not downloadable" } });
       const artifactsBase = join(workspaceRoot, "artifacts");
-      // Use the resolved safe path — not the raw DB path
-      const safePath = resolveInsideBase(artifactsBase, record.filePath.replace(artifactsBase, "").replace(/^[/\\]/, "") || ".");
+      // Use relative() + realpath to prevent prefix-collision and symlink escape
+      let safePath: string;
+      try {
+        const real = realpathSync(record.filePath);
+        const rel = relative(artifactsBase, real);
+        if (rel.startsWith("..") || rel.startsWith("/")) throw new Error("outside base");
+        safePath = real;
+      } catch {
+        throw new AppError(ErrorCode.FILE_OP_PATH_UNSAFE, { details: { artifactId } });
+      }
       if (!existsSync(safePath)) throw new AppError(ErrorCode.ARTIFACT_NOT_FOUND, { details: { artifactId, reason: "file missing" } });
       const stat = statSync(safePath);
       const ext = record.fileName.split(".").pop() ?? "";
       const contentType = ext === "jar" ? "application/java-archive" : ext === "json" ? "application/json" : ext === "log" ? "text/plain" : "application/octet-stream";
-      return { record, stream: createReadStream(safePath), contentType, contentLength: stat.size, contentDisposition: `attachment; filename="${record.fileName}"`, sha256: record.sha256 };
+      const contentDisposition = `attachment; filename="${record.fileName.replace(/["\r\n]/g, "_")}"`;
+      return { record, stream: createReadStream(safePath), contentType, contentLength: stat.size, contentDisposition, sha256: record.sha256 };
     },
 
     async delete(artifactId: string, workspaceRoot?: string): Promise<void> {

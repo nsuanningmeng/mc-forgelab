@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, readdirSync, statSync, existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, readdirSync, statSync, existsSync, realpathSync, lstatSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 import { AppError, ErrorCode } from "@mc-forgelab/app-error";
 import { resolveInsideBase, validatePatch, type FilePatch } from "./patch.js";
 
@@ -17,6 +17,8 @@ export function createFileOperationService(): FileOperationService {
   return {
     readFile(root, path) {
       const abs = resolveInsideBase(root, path);
+      // Verify realpath stays inside root (symlink escape prevention)
+      try { const real = realpathSync(abs); if (relative(root, real).startsWith("..")) throw new Error(); } catch { throw new AppError(ErrorCode.FILE_OP_PATH_UNSAFE, { details: { path } }); }
       if (!existsSync(abs)) throw new AppError(ErrorCode.FILE_OP_NOT_FOUND, { details: { path } });
       return readFileSync(abs, "utf8");
     },
@@ -29,8 +31,9 @@ export function createFileOperationService(): FileOperationService {
           const full = join(current, entry);
           const rel = prefix ? `${prefix}/${entry}` : entry;
           try {
-            const stat = statSync(full);
-            if (stat.isDirectory()) walk(full, rel);
+            const lst = lstatSync(full);
+            if (lst.isSymbolicLink()) continue; // skip symlinks
+            if (lst.isDirectory()) walk(full, rel);
             else results.push(rel);
           } catch { /* skip */ }
         }

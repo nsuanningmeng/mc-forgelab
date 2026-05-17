@@ -9,7 +9,7 @@ import type {
   ConnectionTestResult, ModelInfo
 } from "./types.js";
 
-const ENCRYPTION_SECRET = "mc-forgelab-provider-secret-v1";
+const ENCRYPTION_SECRET = process.env.MC_FORGELAB_PROVIDER_SECRET ?? "mc-forgelab-provider-secret-v1-dev-only";
 
 export interface CreateProviderInput {
   displayName: string;

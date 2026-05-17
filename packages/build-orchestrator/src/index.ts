@@ -46,11 +46,13 @@ export async function runBuild(
     resolveGradleWrapper(opts.projectPath)
   ]);
 
-  const env: Record<string, string> = {
-    ...process.env as Record<string, string>,
-    ...java.env,
-    PATH: process.env.PATH ?? ""
-  };
+  // Whitelist env — never inherit full process.env to avoid leaking host secrets
+  const ALLOWED_ENV_KEYS = new Set(["SYSTEMROOT", "TEMP", "TMP", "HOME", "USER", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOMEDRIVE", "HOMEPATH"]);
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (v !== undefined && ALLOWED_ENV_KEYS.has(k)) env[k] = v;
+  }
+  Object.assign(env, java.env);
 
   const logStream = createWriteStream(logPath, { flags: "a" });
   const lines: string[] = [];
