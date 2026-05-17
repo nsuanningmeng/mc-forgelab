@@ -10,6 +10,9 @@ import type {
 } from "./types.js";
 
 const ENCRYPTION_SECRET = process.env.MC_FORGELAB_PROVIDER_SECRET ?? "mc-forgelab-provider-secret-v1-dev-only";
+if (!process.env.MC_FORGELAB_PROVIDER_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("MC_FORGELAB_PROVIDER_SECRET must be set in production to protect stored API keys");
+}
 
 export interface CreateProviderInput {
   displayName: string;

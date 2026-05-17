@@ -1,7 +1,7 @@
 services:
-  mc-ai-forgelab:
-    image: mc-ai-forgelab:latest
-    container_name: mc-ai-forgelab
+  mc-forgelab:
+    image: mc-forgelab:latest
+    container_name: mc-forgelab
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -10,18 +10,20 @@ services:
       - ./cache:/data/cache
       - ./logs:/data/logs
       - ./db:/data/db
-      - ./toolchains:/opt/mc-ai-forgelab/toolchains
+      - ./toolchains:/opt/mc-forgelab/toolchains
     environment:
-      - MC_AI_FORGELAB_MODE=web
-      - MC_AI_FORGELAB_HOST=0.0.0.0
-      - MC_AI_FORGELAB_PORT=3000
-      - MC_AI_FORGELAB_WORKSPACE=/data/workspace
-      - MC_AI_FORGELAB_CACHE=/data/cache
-      - MC_AI_FORGELAB_LOGS=/data/logs
-      - MC_AI_FORGELAB_DB=/data/db/mc-ai-forgelab.sqlite
-      - MC_AI_FORGELAB_MAX_BUILD_CONCURRENCY=1
-      - MC_AI_FORGELAB_AUTH_ENABLED=false
+      - MC_FORGELAB_MODE=web
+      - MC_FORGELAB_HOST=0.0.0.0
+      - MC_FORGELAB_PORT=3000
+      - MC_FORGELAB_WORKSPACE=/data/workspace
+      - MC_FORGELAB_CACHE=/data/cache
+      - MC_FORGELAB_LOGS=/data/logs
+      - MC_FORGELAB_DB=/data/db/mc-forgelab.sqlite
+      - MC_FORGELAB_MAX_BUILD_CONCURRENCY=1
+      - MC_FORGELAB_AUTH_ENABLED=false
+      # Required for production: set a strong random secret to protect stored API keys
+      # - MC_FORGELAB_PROVIDER_SECRET=change-me-to-a-strong-random-secret
       # Uncomment and set for public deployments:
-      # - MC_AI_FORGELAB_AUTH_ENABLED=true
-      # - MC_AI_FORGELAB_ADMIN_USER=admin
-      # - MC_AI_FORGELAB_ADMIN_PASSWORD=your-strong-password
+      # - MC_FORGELAB_AUTH_ENABLED=true
+      # - MC_FORGELAB_ADMIN_USER=admin
+      # - MC_FORGELAB_ADMIN_PASSWORD=your-strong-password

@@ -10,6 +10,7 @@ export type Arch = "x64" | "arm64";
 export interface ResolvedTool {
   readonly executable: string;
   readonly env: Readonly<Record<string, string>>;
+  readonly args?: ReadonlyArray<string>;
 }
 
 export interface ToolchainStatus {
@@ -28,8 +29,9 @@ function toolchainsDir(): string {
 }
 
 function tryExec(cmd: string, args: string[]): string | null {
-  try { return execFileSync(cmd, args, { encoding: "utf8", timeout: 5000 }).trim(); }
-  catch { return null; }
+  // java -version writes to stderr; capture both streams
+  try { return execFileSync(cmd, args, { encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).trim(); }
+  catch (e) { return (e as NodeJS.ErrnoException & { stderr?: string }).stderr?.trim() ?? null; }
 }
 
 /** Resolve Java executable — prefers managed toolchain, falls back to system java */
@@ -49,7 +51,11 @@ export async function resolveJava(version: 8 | 11 | 17 | 21): Promise<ResolvedTo
 /** Resolve Gradle wrapper in project dir, or fall back to system gradle */
 export async function resolveGradleWrapper(projectDir: string): Promise<ResolvedTool> {
   const wrapper = osPlatform() === "win32" ? join(projectDir, "gradlew.bat") : join(projectDir, "gradlew");
-  if (existsSync(wrapper)) return { executable: wrapper, env: {} };
+  // gradlew.bat on Windows requires cmd.exe; shell:false cannot execute .bat directly
+  if (existsSync(wrapper)) {
+    if (osPlatform() === "win32") return { executable: "cmd.exe", env: {}, args: ["/d", "/s", "/c", wrapper] };
+    return { executable: wrapper, env: {} };
+  }
   const sysGradle = osPlatform() === "win32" ? "gradle.bat" : "gradle";
   const ver = tryExec(sysGradle, ["--version"]);
   if (ver) return { executable: sysGradle, env: {} };

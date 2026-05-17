@@ -29,7 +29,7 @@ export function createFileOperationService(): FileOperationService {
       function walk(current: string, prefix: string) {
         for (const entry of readdirSync(current)) {
           const full = join(current, entry);
-          const rel = prefix ? `${prefix}/${entry}` : entry;
+          const rel = prefix ? join(prefix, entry) : entry;
           try {
             const lst = lstatSync(full);
             if (lst.isSymbolicLink()) continue; // skip symlinks

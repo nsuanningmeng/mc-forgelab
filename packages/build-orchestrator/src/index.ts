@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, relative, isAbsolute } from "node:path";
 import { randomUUID } from "node:crypto";
 import { resolveInsideBase } from "@mc-forgelab/file-operation";
 import { resolveJava, resolveGradleWrapper } from "@mc-forgelab/toolchain-manager";
@@ -37,8 +37,9 @@ export async function runBuild(
   const logPath = join(logsDir, `${buildId}.log`);
   mkdirSync(logsDir, { recursive: true });
 
-  // Validate project path is inside workspace
-  resolveInsideBase(opts.workspaceRoot, opts.projectPath.replace(opts.workspaceRoot, "").replace(/^[/\\]/, "") || ".");
+  // Validate project path is inside workspace (use relative() to avoid prefix-collision)
+  const rel = relative(opts.workspaceRoot, opts.projectPath);
+  if (!rel || rel.startsWith("..") || isAbsolute(rel)) throw new Error("projectPath is outside workspaceRoot");
 
   const javaVersion = opts.javaVersion ?? 17;
   const [java, gradle] = await Promise.all([
@@ -47,7 +48,9 @@ export async function runBuild(
   ]);
 
   // Whitelist env — never inherit full process.env to avoid leaking host secrets
-  const ALLOWED_ENV_KEYS = new Set(["SYSTEMROOT", "TEMP", "TMP", "HOME", "USER", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOMEDRIVE", "HOMEPATH"]);
+  // PATH is required for gradle/java resolution; include platform-correct key
+  const pathKey = process.platform === "win32" ? "Path" : "PATH";
+  const ALLOWED_ENV_KEYS = new Set(["SYSTEMROOT", "TEMP", "TMP", "HOME", "USER", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOMEDRIVE", "HOMEPATH", pathKey]);
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (v !== undefined && ALLOWED_ENV_KEYS.has(k)) env[k] = v;
@@ -59,7 +62,7 @@ export async function runBuild(
 
   return new Promise((resolve) => {
     const timeout = opts.timeoutMs ?? 300_000;
-    const proc = spawn(gradle.executable, ["build", "--no-daemon", "--stacktrace"], {
+    const proc = spawn(gradle.executable, [...(gradle.args ?? []), "build", "--no-daemon", "--stacktrace"], {
       cwd: opts.projectPath,
       env,
       shell: false
