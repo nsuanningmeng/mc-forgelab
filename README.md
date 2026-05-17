@@ -1,67 +1,58 @@
-# MC-ForgeLab
+# MC-AI-ForgeLab
 
-> Minecraft 插件、模组、混合端项目的**生成—编译—打包—下载**一体化平台。
-> 四端可用：Windows / macOS / Linux / Docker。
+**AI-powered Minecraft plugin and mod development platform.**
 
-## 项目状态
+MC-AI-ForgeLab 是一个 AI 驱动的 Minecraft 插件/模组自动开发平台，目标是让用户通过自然语言描述需求，由 AI 自动规划、编写代码、编译、修错、打包并导出 jar 和源码包。
 
-**当前阶段：阶段 1（基础架构）**
+## 核心特性规划
 
-本仓库实现了：
+- OpenAI Compatible 第三方 API 接入，支持自定义 baseUrl / apiKey / model
+- AI 自然语言开发插件/模组（单模型快速模式 / 多模型工作流模式）
+- 自动生成项目结构、自动编译、自动分析构建错误、自动修复代码
+- Docker WebUI / Windows / macOS / Linux 桌面端 / CLI
+- jar / source.zip / build.log / manifest.json 下载
+- Paper / Fabric / Velocity / Forge / NeoForge / Quilt 等目标端逐步支持
 
-- ✅ pnpm + turbo monorepo 工程骨架
-- ✅ `packages/core`、`app-error`、`logger`、`config`、`storage`、`target-registry`、`compatibility`
-- ✅ `apps/cli` 提供 `mcforgelab doctor` 与 `mcforgelab target list`
-- 🚧 后续阶段（toolchain / template / build / artifact / WebUI / Docker / Electron）见 `docs/roadmap.md`
+## 当前状态
+
+项目处于**早期开发阶段**，API、架构和数据模型可能变化。欢迎贡献 target registry、compatibility registry、模板、文档和测试。
 
 ## 快速开始
 
 ```bash
+# Docker WebUI
+cp docker-compose.example.yml docker-compose.yml
+docker compose up -d
+# 浏览器打开 http://localhost:3000
+```
+
+```bash
+# 开发模式
+cp .env.example .env
 pnpm install
-pnpm typecheck
-pnpm test
-pnpm build
-
-# CLI 验收
-pnpm cli doctor
-pnpm cli target list
-pnpm cli target list --json
+pnpm --filter @mc-forgelab/web dev
 ```
 
-## 目录结构
+> **重要**：不要将 `.env` 提交到 Git。`.env` 已在 `.gitignore` 中排除。
 
-```
-apps/         应用层（cli / web / desktop）
-packages/     业务包（core / app-error / logger / config / storage / target-registry / compatibility / 其余占位）
-docs/         总体设计文档与 UI 蓝图
-schemas/      JSON Schema（项目配置）
-contracts/    跨语言契约（SSE 事件等）
-docker/       Docker 构建骨架（阶段 7 实现）
-tests/        跨包集成测试占位
-```
+## 安全声明
 
-## 核心设计文档
+- 本项目不提供恶意插件生成能力，不提供盗号、后门、绕授权、绕正版验证、攻击服务器功能
+- AI 文件操作限制在 workspace 内，禁止路径穿越
+- API Key 不应提交到 Git，不应写入日志
+- Docker WebUI 暴露公网时必须开启认证（`MC_FORGELAB_AUTH_ENABLED=true`）和 HTTPS
 
-- [docs/architecture.md](docs/architecture.md) — 总体架构
-- [docs/data-model.md](docs/data-model.md) — SQLite 模型
-- [docs/api.md](docs/api.md) — REST API（含 SSE 构建日志流）
-- [docs/roadmap.md](docs/roadmap.md) — 10 阶段路线
-- [docs/security.md](docs/security.md) — 安全模型与合规边界
-- [docs/configuration.md](docs/configuration.md) — 环境变量与默认目录
-- [docs/cli-ux.md](docs/cli-ux.md) — CLI 体验规范
-- [docs/electron.md](docs/electron.md) — 桌面端架构
-- [docs/ui-blueprint/](docs/ui-blueprint/) — WebUI 8 页面蓝图
+## 许可证
 
-## 合规边界
+本项目采用 **[AGPL-3.0-only](LICENSE)** 开源。
 
-本工具**不**：
+- 你可以自由使用、学习、修改、分发本项目
+- 如果你修改本项目并作为**网络服务**提供给用户，需遵守 AGPL 对应的源码提供义务
+- 详见 [docs/licensing.md](docs/licensing.md)
 
-- 内置盗版 Minecraft 服务端 jar
-- 绕过 Mojang 正版验证
-- 提供后门 / 盗号 / DDoS / 绕授权 / 恶意插件能力
+## 免责声明
 
-详见 [docs/security.md](docs/security.md)。
-
-## License
-
-Apache-2.0
+- Minecraft 是 Mojang/Microsoft 的注册商标，本项目与 Mojang/Microsoft 无关
+- 本项目不分发 Minecraft 客户端或服务端 jar，不绕过正版验证
+- 用户需自行遵守 Minecraft EULA、服务器规则及第三方 API 服务条款
+- 详见 [TRADEMARKS.md](TRADEMARKS.md)

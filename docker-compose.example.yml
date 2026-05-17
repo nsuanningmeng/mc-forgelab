@@ -1,0 +1,27 @@
+services:
+  mc-ai-forgelab:
+    image: mc-ai-forgelab:latest
+    container_name: mc-ai-forgelab
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./workspace:/data/workspace
+      - ./cache:/data/cache
+      - ./logs:/data/logs
+      - ./db:/data/db
+      - ./toolchains:/opt/mc-ai-forgelab/toolchains
+    environment:
+      - MC_AI_FORGELAB_MODE=web
+      - MC_AI_FORGELAB_HOST=0.0.0.0
+      - MC_AI_FORGELAB_PORT=3000
+      - MC_AI_FORGELAB_WORKSPACE=/data/workspace
+      - MC_AI_FORGELAB_CACHE=/data/cache
+      - MC_AI_FORGELAB_LOGS=/data/logs
+      - MC_AI_FORGELAB_DB=/data/db/mc-ai-forgelab.sqlite
+      - MC_AI_FORGELAB_MAX_BUILD_CONCURRENCY=1
+      - MC_AI_FORGELAB_AUTH_ENABLED=false
+      # Uncomment and set for public deployments:
+      # - MC_AI_FORGELAB_AUTH_ENABLED=true
+      # - MC_AI_FORGELAB_ADMIN_USER=admin
+      # - MC_AI_FORGELAB_ADMIN_PASSWORD=your-strong-password
