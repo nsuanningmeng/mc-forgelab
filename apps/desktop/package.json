@@ -39,6 +39,16 @@
       "target": [{ "target": "nsis", "arch": ["x64"] }],
       "icon": "assets/icon.ico"
     },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "uninstallDisplayName": "MC ForgeLab",
+      "deleteAppDataOnUninstall": false,
+      "installerLanguages": ["en_US", "zh_CN"],
+      "language": "2052"
+    },
     "mac": {
       "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
       "icon": "assets/icon.icns"
