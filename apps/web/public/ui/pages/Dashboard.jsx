@@ -72,19 +72,27 @@ window.MCFL = window.MCFL || {};
                       </tr>
                     </thead>
                     <tbody>
-                      {runs.slice(0, 5).map(r => (
-                        <tr key={r.id} className={cx.tableRow}>
-                          <td className={cx.tableTd}>{r.projectName}</td>
-                          <td className={cx.tableTd}><span className="text-2xs uppercase text-tx3">{r.mode}</span></td>
-                          <td className={cx.tableTd}>
-                            <div className="flex items-center gap-1.5">
-                              <div className={`w-1.5 h-1.5 rounded-full ${r.status === 'success' ? 'bg-mc' : r.status === 'running' ? 'bg-blue animate-pulse' : 'bg-danger'}`} />
-                              <span className="text-xs">{r.status}</span>
-                            </div>
-                          </td>
-                          <td className={cx.tableTd}><span className="text-tx3 tabular-nums">{new Date(r.startedAt).toLocaleString()}</span></td>
-                        </tr>
-                      ))}
+                      {runs.slice(0, 5).map(r => {
+                        const startedAt = r && (r.started_at || r.startedAt);
+                        const projectId = r && (r.project_id || r.projectId);
+                        return (
+                          <tr key={r.id} className={cx.tableRow}>
+                            <td className={cx.tableTd}>{r.projectName || projectId || "—"}</td>
+                            <td className={cx.tableTd}><span className="text-2xs uppercase text-tx3">{r.mode || "—"}</span></td>
+                            <td className={cx.tableTd}>
+                              <div className="flex items-center gap-1.5">
+                                <div className={`w-1.5 h-1.5 rounded-full ${r.status === 'success' ? 'bg-mc' : r.status === 'running' ? 'bg-blue animate-pulse' : 'bg-danger'}`} />
+                                <span className="text-xs">{r.status || "pending"}</span>
+                              </div>
+                            </td>
+                            <td className={cx.tableTd}>
+                              <span className="text-tx3 tabular-nums">
+                                {startedAt ? new Date(startedAt).toLocaleString() : "—"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
