@@ -45,7 +45,7 @@ window.MCFL = window.MCFL || {};
         <PageHeader
           title={t.proj.title}
           subtitle={t.proj.subtitle}
-          action={
+          actions={
             <button onClick={() => setShowNew(true)} className={cx.btnPrimary}>
               <Icon name="plus" className="w-4 h-4" />
               {t.proj.newProject}
