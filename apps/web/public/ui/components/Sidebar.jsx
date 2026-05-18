@@ -4,14 +4,12 @@ window.MCFL = window.MCFL || {};
 
   function Sidebar({ t, activePage, onNavigate }) {
     const items = [
-      { id: "dashboard", icon: "home", label: t.nav.dashboard },
+      { id: "dashboard", icon: "dashboard", label: t.nav.dashboard },
       { id: "workspace", icon: "spark", label: t.nav.workspace },
       { id: "projects", icon: "folder", label: t.nav.projects },
-      { id: "builds", icon: "hammer", label: t.nav.builds },
-      { id: "artifacts", icon: "package", label: t.nav.artifacts },
-      { id: "knowledge", icon: "info", label: t.nav.knowledge },
-      { id: "toolchains", icon: "cpu", label: t.nav.toolchains },
-      { id: "settings", icon: "gear", label: t.nav.settings },
+      { id: "builds", icon: "terminal", label: t.nav.builds },
+      { id: "artifacts", icon: "box", label: t.nav.artifacts },
+      { id: "settings", icon: "cog", label: t.nav.settings },
     ];
 
     return (
@@ -42,7 +40,7 @@ window.MCFL = window.MCFL || {};
         <div className="p-4 border-t border-border/50">
           <div className="bg-elevated rounded-md p-3">
             <div className="text-2xs text-tx3 uppercase tracking-wider mb-1">Runtime Version</div>
-            <div className="text-xs font-mono text-mc">v0.2.0-beta.4</div>
+            <div className="text-xs font-mono text-mc">v0.2.4</div>
           </div>
         </div>
       </aside>
