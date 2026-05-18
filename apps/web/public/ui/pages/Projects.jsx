@@ -73,11 +73,15 @@ window.MCFL = window.MCFL || {};
                 <label className={cx.label}>{t.proj.target}</label>
                 <select required className={cx.select} value={form.target} onChange={e => handleTargetChange(e.target.value)}>
                   <option value="">— Select Target —</option>
-                  {targets.map(tg => (
-                    <option key={tg.id} value={tg.id}>
-                      {tg.name} {tg.stability === 'stable' ? '' : `(${tg.stability})`}
-                    </option>
-                  ))}
+                  {targets.map(tg => {
+                    const name = tg.displayName || tg.name || tg.id;
+                    const tag = tg.stability && tg.stability !== "stable" ? ` (${tg.stability})` : "";
+                    return (
+                      <option key={tg.id} value={tg.id}>
+                        {name}{tag}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
               <div className="space-y-1.5">

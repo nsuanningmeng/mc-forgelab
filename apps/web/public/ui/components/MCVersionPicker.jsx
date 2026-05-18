@@ -55,7 +55,7 @@ window.MCFL = window.MCFL || {};
               <optgroup key={label} label={label}>
                 {list.map((v) => (
                   <option key={v.version} value={v.version}>
-                    {v.version} {v.stable ? '' : '(exp)'}
+                    {v.version}
                   </option>
                 ))}
               </optgroup>
@@ -68,8 +68,12 @@ window.MCFL = window.MCFL || {};
 
         {selectedVer && (
           <div className="flex gap-4 text-2xs text-tx3 font-medium uppercase tracking-wider">
-            <div>{t.proj.recJava}: <span className="text-mc">Java {selectedVer.recommendedJava}</span></div>
-            <div>{t.proj.recBuildTool}: <span className="text-blue">{selectedVer.recommendedBuildTool}</span></div>
+            {selectedVer.recommendedJava && (
+              <div>{t.proj.recJava}: <span className="text-mc">Java {selectedVer.recommendedJava}</span></div>
+            )}
+            {(selectedVer.buildTool || selectedVer.recommendedBuildTool) && (
+              <div>{t.proj.recBuildTool}: <span className="text-blue">{selectedVer.buildTool || selectedVer.recommendedBuildTool}</span></div>
+            )}
           </div>
         )}
       </div>
