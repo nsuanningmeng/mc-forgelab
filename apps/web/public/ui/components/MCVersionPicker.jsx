@@ -43,28 +43,23 @@ window.MCFL = window.MCFL || {};
 
     return (
       <div className="space-y-2">
-        <div className="relative">
-          <select
-            className={cx.select}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            disabled={loading || !targetId}
-          >
-            <option value="" className="bg-surface text-tx1">{loading ? t.common.loading : `— Select ${t.proj.mcVersion} —`}</option>
-            {Object.entries(groups).map(([label, list]) => (
-              <optgroup key={label} label={label} className="bg-surface text-tx1 font-semibold">
-                {list.map((v) => (
-                  <option key={v.version} value={v.version} className="bg-surface text-tx1">
-                    {v.version}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-tx3">
-            <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
-          </div>
-        </div>
+        <select
+          className={cx.select}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={loading || !targetId}
+        >
+          <option value="" className="bg-surface text-tx1">{loading ? t.common.loading : `— Select ${t.proj.mcVersion} —`}</option>
+          {Object.entries(groups).map(([label, list]) => (
+            <optgroup key={label} label={label} className="bg-surface text-tx1 font-semibold">
+              {list.map((v) => (
+                <option key={v.version} value={v.version} className="bg-surface text-tx1">
+                  {v.version}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
 
         {selectedVer && (
           <div className="flex gap-4 text-2xs text-tx3 font-medium uppercase tracking-wider">

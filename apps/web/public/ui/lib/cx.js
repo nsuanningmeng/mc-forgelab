@@ -12,7 +12,7 @@ window.MCFL.cx = (() => {
 
   // Inputs
   const input = "w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-tx1 placeholder:text-tx3 focus:outline-none focus:border-mc/60 focus:ring-1 focus:ring-mc/30 transition-colors";
-  const select = input + " pr-8 appearance-none";
+  const select = input;
   const textarea = "w-full bg-bg border border-border rounded-md px-3 py-2.5 text-sm text-tx1 placeholder:text-tx3 focus:outline-none focus:border-mc/60 focus:ring-1 focus:ring-mc/30 transition-colors resize-y";
   const label = "block text-2xs font-semibold tracking-wider text-tx2 uppercase mb-1.5";
 
