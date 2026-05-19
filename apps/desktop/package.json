@@ -46,18 +46,10 @@
       "output": "release"
     },
     "asar": true,
-    "asarUnpack": [
-      "node_modules/better-sqlite3/build/Release/*.node",
-      "node_modules/better-sqlite3/lib/binding/**/*"
-    ],
-    "npmRebuild": true,
-    "buildDependenciesFromSource": false,
     "files": [
       "dist/**/*",
       "package.json",
       "node_modules/better-sqlite3/**/*",
-      "node_modules/bindings/**/*",
-      "node_modules/file-uri-to-path/**/*",
       "node_modules/@mc-forgelab/*/dist/**/*",
       "node_modules/@mc-forgelab/*/package.json",
       "node_modules/@mc-forgelab/web/public/**/*"
