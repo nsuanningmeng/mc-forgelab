@@ -25,7 +25,12 @@ window.MCFL = window.MCFL || {};
       e.preventDefault();
       setBusy(true);
       try {
-        await api.createProject(form);
+        await api.createProject({
+          name: form.name,
+          targetId: form.target,
+          minecraftVersion: form.mcVersion,
+          packageName: form.packageName,
+        });
         setShowNew(false);
         setForm({ name: '', target: '', mcVersion: '', packageName: 'com.example.plugin' });
         reload();
@@ -83,11 +88,11 @@ window.MCFL = window.MCFL || {};
               <div className="space-y-1.5">
                 <label className={cx.label}>{t.proj.target}</label>
                 <select required className={cx.select} value={form.target} onChange={e => handleTargetChange(e.target.value)}>
-                  <option value="">— Select Target —</option>
+                  <option value="" className="bg-surface text-tx1">— Select Target —</option>
                   {targets.map(tg => {
                     const name = tg.displayName || tg.name || tg.id;
                     return (
-                      <option key={tg.id} value={tg.id}>
+                      <option key={tg.id} value={tg.id} className="bg-surface text-tx1">
                         {name}
                       </option>
                     );

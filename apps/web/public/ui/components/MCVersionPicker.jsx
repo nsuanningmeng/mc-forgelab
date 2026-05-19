@@ -50,11 +50,11 @@ window.MCFL = window.MCFL || {};
             onChange={(e) => onChange(e.target.value)}
             disabled={loading || !targetId}
           >
-            <option value="">{loading ? t.common.loading : `— Select ${t.proj.mcVersion} —`}</option>
+            <option value="" className="bg-surface text-tx1">{loading ? t.common.loading : `— Select ${t.proj.mcVersion} —`}</option>
             {Object.entries(groups).map(([label, list]) => (
-              <optgroup key={label} label={label}>
+              <optgroup key={label} label={label} className="bg-surface text-tx1 font-semibold">
                 {list.map((v) => (
-                  <option key={v.version} value={v.version}>
+                  <option key={v.version} value={v.version} className="bg-surface text-tx1">
                     {v.version}
                   </option>
                 ))}

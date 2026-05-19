@@ -3,12 +3,18 @@ import type { AppContext } from "./types.js";
 import { randomUUID } from "node:crypto";
 import { createDefaultRegistry } from "@mc-forgelab/target-registry";
 
-const VALID_TARGETS = new Set(["paper","spigot","purpur","folia","velocity","bungeecord","fabric","forge","neoforge","quilt"]);
 const MC_VERSION_RE = /^\d+\.\d+(\.\d+)?$/;
 const PKG_RE = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/;
 
 export async function registerProjectRoutes(app: FastifyInstance, ctx: AppContext) {
   const targetRegistry = createDefaultRegistry();
+  // Derive valid target IDs from the registry so /api/projects accepts
+  // every target that /api/targets exposes (previously hard-coded set
+  // dropped bukkit/mohist/waterfall, which the UI happily offered then
+  // rejected with HTTP 400 on submit).
+  const validTargets = new Set(
+    targetRegistry.list({ includeLegacy: true, includeDeprecated: true }).map((t) => t.id)
+  );
 
   app.get("/api/projects", async () => {
     return ctx.storage.backend.all("SELECT * FROM projects ORDER BY created_at DESC");
@@ -48,8 +54,8 @@ export async function registerProjectRoutes(app: FastifyInstance, ctx: AppContex
       const { name, targetId = "paper", minecraftVersion = "1.20.1", packageName = "com.example.plugin" } = req.body ?? {};
       if (!name || typeof name !== "string" || name.trim().length === 0 || name.length > 128)
         return reply.status(400).send({ error: "name is required (1-128 chars)" });
-      if (typeof targetId !== "string" || !VALID_TARGETS.has(targetId))
-        return reply.status(400).send({ error: `targetId must be one of: ${[...VALID_TARGETS].join(", ")}` });
+      if (typeof targetId !== "string" || !validTargets.has(targetId))
+        return reply.status(400).send({ error: `targetId must be one of: ${[...validTargets].join(", ")}` });
       if (typeof minecraftVersion !== "string" || !MC_VERSION_RE.test(minecraftVersion))
         return reply.status(400).send({ error: "minecraftVersion must match x.y or x.y.z" });
       if (typeof packageName !== "string" || !PKG_RE.test(packageName))

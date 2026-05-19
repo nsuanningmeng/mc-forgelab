@@ -53,6 +53,38 @@ describe("Projects API", () => {
     const del = await app.inject({ method: "DELETE", url: `/api/projects/${id}` });
     expect(del.statusCode).toBe(204);
   });
+
+  it("persists selected target and Minecraft version (regression: field-name mismatch)", async () => {
+    const create = await app.inject({
+      method: "POST", url: "/api/projects",
+      payload: {
+        name: "ForgePicked",
+        targetId: "forge",
+        minecraftVersion: "1.21.4",
+        packageName: "com.example.forgepicked",
+      },
+    });
+    expect(create.statusCode).toBe(201);
+    const project = JSON.parse(create.body);
+    expect(project.target_id).toBe("forge");
+    expect(project.minecraft_version).toBe("1.21.4");
+  });
+
+  it("accepts every target id exposed by /api/targets (regression: VALID_TARGETS drift)", async () => {
+    const targets = JSON.parse((await app.inject({ method: "GET", url: "/api/targets" })).body) as Array<{ id: string }>;
+    for (const t of targets) {
+      const res = await app.inject({
+        method: "POST", url: "/api/projects",
+        payload: {
+          name: `T_${t.id}`,
+          targetId: t.id,
+          minecraftVersion: "1.20.4",
+          packageName: `com.example.${t.id.replace(/[^a-z0-9]/g, "")}`,
+        },
+      });
+      expect(res.statusCode, `target ${t.id} should be accepted`).toBe(201);
+    }
+  });
 });
 
 describe("AI routes", () => {
