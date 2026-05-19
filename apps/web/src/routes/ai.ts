@@ -57,6 +57,28 @@ function validateProviderInput(body: {
   return null;
 }
 
+function runSnapshot(ctx: AppContext, runId: string) {
+  const run = ctx.storage.backend.get<Record<string, unknown>>("SELECT * FROM ai_workflow_runs WHERE id = ?", [runId]);
+  if (!run) return null;
+  const steps = ctx.storage.backend.all<Record<string, unknown>>(
+    "SELECT * FROM ai_workflow_steps WHERE run_id = ? ORDER BY sequence",
+    [runId]
+  );
+  const snapshot: Record<string, unknown> & {
+    steps: Record<string, unknown>[];
+    pending_confirmation: boolean;
+  } = {
+    ...run,
+    steps,
+    pending_confirmation: Boolean(run.waiting_for)
+  };
+  return snapshot;
+}
+
+function isTerminalStatus(status: unknown): boolean {
+  return status === "success" || status === "failed" || status === "canceled";
+}
+
 export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get("/api/ai/providers", async () => {
     const rows = ctx.storage.backend.all<Record<string, unknown>>(
@@ -187,11 +209,65 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
     return ctx.storage.backend.all("SELECT * FROM ai_workflow_runs ORDER BY started_at DESC LIMIT 50");
   });
 
+  app.post<{ Body: {
+    workflowId?: string;
+    prompt?: string;
+    projectId?: string;
+    providerId?: string;
+    model?: string;
+    settings?: { patchReview?: boolean };
+  } }>(
+    "/api/ai/workflow-runs",
+    async (req, reply) => {
+      const body = req.body ?? {};
+      if (typeof body.workflowId !== "string" || body.workflowId.trim().length === 0) {
+        return reply.status(400).send({ error: "workflowId is required" });
+      }
+      if (typeof body.prompt !== "string" || body.prompt.trim().length < 1 || body.prompt.length > 8000) {
+        return reply.status(400).send({ error: "prompt is required (1-8000 chars)" });
+      }
+
+      const workflow = ctx.storage.backend.get("SELECT id FROM ai_workflows WHERE id = ?", [body.workflowId]);
+      if (!workflow) return reply.status(404).send({ error: "Workflow not found" });
+
+      if (body.projectId) {
+        const project = ctx.storage.backend.get("SELECT id FROM projects WHERE id = ?", [body.projectId]);
+        if (!project) return reply.status(404).send({ error: "Project not found" });
+
+        const active = ctx.storage.backend.get(
+          "SELECT id FROM ai_workflow_runs WHERE project_id = ? AND status IN ('pending', 'running', 'waiting_confirmation')",
+          [body.projectId]
+        );
+        if (active) return reply.status(409).send({ error: "A workflow run is already active for this project" });
+      }
+
+      const result = await ctx.workflowRuntime.startRun({
+        workflowId: body.workflowId,
+        userPrompt: body.prompt,
+        projectId: body.projectId,
+        providerId: body.providerId,
+        model: body.model,
+        patchReviewEnabled: body.settings?.patchReview === true,
+        triggerType: "manual"
+      });
+      return reply.status(202).send(result);
+    }
+  );
+
+  app.get<{ Params: { runId: string } }>(
+    "/api/ai/workflow-runs/:runId",
+    async (req, reply) => {
+      const snapshot = runSnapshot(ctx, req.params.runId);
+      if (!snapshot) return reply.status(404).send({ error: "Run not found" });
+      return snapshot;
+    }
+  );
+
   app.get<{ Params: { runId: string } }>(
     "/api/ai/workflow-runs/:runId/stream",
     async (req, reply) => {
-      const run = ctx.storage.backend.get("SELECT * FROM ai_workflow_runs WHERE id = ?", [req.params.runId]);
-      if (!run) return reply.status(404).send({ error: "Run not found" });
+      const snapshot = runSnapshot(ctx, req.params.runId);
+      if (!snapshot) return reply.status(404).send({ error: "Run not found" });
 
       reply.raw.writeHead(200, {
         "Content-Type": "text/event-stream",
@@ -200,12 +276,113 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
         "X-Accel-Buffering": "no",
       });
 
-      const steps = ctx.storage.backend.all("SELECT * FROM ai_workflow_steps WHERE run_id = ? ORDER BY started_at", [req.params.runId]);
-      for (const step of steps) {
-        reply.raw.write(`data: ${JSON.stringify({ type: "step", step })}\n\n`);
+      let closed = false;
+      let cleaned = false;
+      const safeWrite = (chunk: string): boolean => {
+        if (closed || reply.raw.writableEnded || reply.raw.destroyed) {
+          closed = true;
+          return false;
+        }
+        try {
+          return reply.raw.write(chunk);
+        } catch {
+          closed = true;
+          return false;
+        }
+      };
+      const send = (event: { type: string; [k: string]: unknown }) => {
+        safeWrite(`data: ${JSON.stringify(event)}\n\n`);
+      };
+
+      for (const event of ctx.workflowRuntime.loadRunEvents(req.params.runId)) {
+        if (closed) break;
+        send(event);
       }
-      reply.raw.write(`data: ${JSON.stringify({ type: "run", run })}\n\n`);
-      reply.raw.end();
+      send({ type: "run_state", run: snapshot, steps: snapshot.steps });
+
+      let unsubscribe: (() => void) | undefined;
+      let ping: NodeJS.Timeout | undefined;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        closed = true;
+        if (ping) clearInterval(ping);
+        unsubscribe?.();
+        try { reply.raw.end(); } catch { /* ignore */ }
+      };
+
+      if (snapshot.status === "running" || snapshot.status === "pending" || snapshot.status === "waiting_confirmation") {
+        unsubscribe = ctx.workflowRuntime.subscribe(req.params.runId, (event) => {
+          if (closed) {
+            cleanup();
+            return;
+          }
+          send(event);
+          if (event.type === "run_finished") {
+            cleanup();
+          }
+        });
+      } else {
+        send({ type: "done" });
+        cleanup();
+        return reply;
+      }
+
+      ping = setInterval(() => {
+        if (closed) {
+          cleanup();
+          return;
+        }
+        safeWrite(`: ping\n\n`);
+      }, 25_000);
+
+      req.raw.on("close", cleanup);
+      req.raw.on("error", cleanup);
+
+      return reply;
+    }
+  );
+
+  app.post<{ Params: { runId: string } }>(
+    "/api/ai/workflow-runs/:runId/cancel",
+    async (req, reply) => {
+      const run = ctx.storage.backend.get<Record<string, unknown>>("SELECT * FROM ai_workflow_runs WHERE id = ?", [req.params.runId]);
+      if (!run) return reply.status(404).send({ error: "Run not found" });
+      if (isTerminalStatus(run.status)) return reply.status(409).send({ error: "Run is already terminal" });
+
+      const ok = await ctx.workflowRuntime.cancelRun(req.params.runId);
+      if (!ok) return reply.status(409).send({ error: "Run could not be canceled" });
+      return reply.status(202).send({ ok: true });
+    }
+  );
+
+  app.post<{ Params: { runId: string }; Body: { fromStepId?: string } }>(
+    "/api/ai/workflow-runs/:runId/retry",
+    async (req, reply) => {
+      if (typeof req.body?.fromStepId !== "string" || req.body.fromStepId.length === 0) {
+        return reply.status(400).send({ error: "fromStepId is required" });
+      }
+      const run = ctx.storage.backend.get<Record<string, unknown>>("SELECT * FROM ai_workflow_runs WHERE id = ?", [req.params.runId]);
+      if (!run) return reply.status(404).send({ error: "Run not found" });
+
+      const result = await ctx.workflowRuntime.retryRunFromStep(req.params.runId, req.body.fromStepId);
+      return reply.status(202).send(result);
+    }
+  );
+
+  app.post<{ Params: { runId: string }; Body: { decision?: "approve" | "reject"; editedPatch?: string } }>(
+    "/api/ai/workflow-runs/:runId/confirm",
+    async (req, reply) => {
+      if (req.body?.decision !== "approve" && req.body?.decision !== "reject") {
+        return reply.status(400).send({ error: "decision is required" });
+      }
+
+      const run = ctx.storage.backend.get<Record<string, unknown>>("SELECT * FROM ai_workflow_runs WHERE id = ?", [req.params.runId]);
+      if (!run) return reply.status(404).send({ error: "Run not found" });
+      if (!run.waiting_for) return reply.status(409).send({ error: "Run is not waiting for confirmation" });
+
+      await ctx.workflowRuntime.confirmPatch(req.params.runId, req.body.decision, req.body.editedPatch);
+      return reply.status(202).send({ ok: true });
     }
   );
 }

@@ -5,7 +5,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openStorage, BASE_MIGRATIONS, STAGE6_MIGRATIONS } from "@mc-forgelab/storage";
 import { STAGE2_MIGRATIONS, createProviderManager } from "@mc-forgelab/ai-provider-manager";
-import { STAGE3_MIGRATIONS } from "@mc-forgelab/ai-workflow-engine";
+import { STAGE3_MIGRATIONS, createWorkflowEngine, createWorkflowRuntime, BUILTIN_WORKFLOWS } from "@mc-forgelab/ai-workflow-engine";
 import { applyMigration as applyKnowledgeMigration, STAGE7_MIGRATIONS } from "@mc-forgelab/knowledge-base";
 import { createArtifactManager } from "@mc-forgelab/artifact-manager";
 import { loadConfig } from "@mc-forgelab/config";
@@ -40,6 +40,13 @@ export async function buildApp() {
   applyKnowledgeMigration(storage);
   const artifacts = createArtifactManager(storage);
   const providers = createProviderManager(storage);
+  const workflowEngine = createWorkflowEngine(storage);
+  workflowEngine.seedBuiltins();
+  const workflowRuntime = createWorkflowRuntime({
+    storage,
+    engine: workflowEngine,
+    workflows: BUILTIN_WORKFLOWS
+  });
   const builds = createBuildRegistry();
   const auditor = createAuditLogger(storage);
 
@@ -70,7 +77,7 @@ export async function buildApp() {
     return reply.status(500).send({ error: "Internal server error" });
   });
 
-  const ctx = { storage, artifacts, cfg, providers, builds, auditor };
+  const ctx = { storage, artifacts, cfg, providers, workflowRuntime, builds, auditor };
   await registerProjectRoutes(app, ctx);
   await registerArtifactRoutes(app, ctx);
   await registerAIRoutes(app, ctx);
@@ -79,9 +86,10 @@ export async function buildApp() {
   await registerTargetRoutes(app);
   await registerKnowledgeRoutes(app);
   await registerAuditRoutes(app, ctx);
-  app.get("/api/health", async () => ({ ok: true, version: "0.2.5" }));
+  app.get("/api/health", async () => ({ ok: true, version: "0.3.0" }));
 
   app.addHook("onClose", async () => {
+    workflowRuntime.closeAll();
     builds.closeAll();
   });
 

@@ -73,5 +73,58 @@ export const STAGE3_MIGRATIONS: ReadonlyArray<Migration> = [
         CREATE INDEX IF NOT EXISTS idx_call_logs_run ON ai_call_logs(workflow_run_id);
       `);
     }
+  },
+  {
+    id: "0009_workflow_runtime_state",
+    apply(backend) {
+      backend.exec("ALTER TABLE ai_workflow_runs ADD COLUMN parent_run_id TEXT");
+      backend.exec("ALTER TABLE ai_workflow_runs ADD COLUMN trigger_type TEXT DEFAULT 'manual'");
+      backend.exec("ALTER TABLE ai_workflow_runs ADD COLUMN patch_review_enabled INTEGER DEFAULT 0");
+      backend.exec("ALTER TABLE ai_workflow_runs ADD COLUMN waiting_for TEXT");
+      backend.exec("ALTER TABLE ai_workflow_runs ADD COLUMN canceled_at TEXT");
+      backend.exec("ALTER TABLE ai_workflow_runs ADD COLUMN retry_of_run_id TEXT");
+      backend.exec("CREATE INDEX IF NOT EXISTS idx_workflow_runs_project ON ai_workflow_runs(project_id)");
+      backend.exec("CREATE INDEX IF NOT EXISTS idx_workflow_runs_parent ON ai_workflow_runs(parent_run_id)");
+    }
+  },
+  {
+    id: "0010_workflow_step_runtime",
+    apply(backend) {
+      backend.exec("ALTER TABLE ai_workflow_steps ADD COLUMN sequence INTEGER DEFAULT 0");
+      backend.exec("ALTER TABLE ai_workflow_steps ADD COLUMN duration_ms INTEGER DEFAULT 0");
+      backend.exec("ALTER TABLE ai_workflow_steps ADD COLUMN input_ref TEXT");
+      backend.exec("ALTER TABLE ai_workflow_steps ADD COLUMN output_ref TEXT");
+      backend.exec("ALTER TABLE ai_workflow_steps ADD COLUMN cost_currency TEXT DEFAULT 'USD'");
+    }
+  },
+  {
+    id: "0011_workflow_events_outputs",
+    apply(backend) {
+      backend.exec(`
+        CREATE TABLE IF NOT EXISTS ai_workflow_events (
+          id TEXT PRIMARY KEY,
+          run_id TEXT NOT NULL,
+          step_row_id TEXT,
+          type TEXT NOT NULL,
+          payload_json TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          sequence INTEGER NOT NULL
+        );
+      `);
+      backend.exec("CREATE INDEX IF NOT EXISTS idx_workflow_events_run ON ai_workflow_events(run_id, sequence)");
+      backend.exec(`
+        CREATE TABLE IF NOT EXISTS ai_workflow_outputs (
+          id TEXT PRIMARY KEY,
+          run_id TEXT NOT NULL,
+          step_row_id TEXT,
+          key TEXT NOT NULL,
+          content_type TEXT NOT NULL DEFAULT 'text',
+          value_text TEXT,
+          file_path TEXT,
+          created_at TEXT NOT NULL
+        );
+      `);
+      backend.exec("CREATE INDEX IF NOT EXISTS idx_workflow_outputs_run_key ON ai_workflow_outputs(run_id, key)");
+    }
   }
 ];

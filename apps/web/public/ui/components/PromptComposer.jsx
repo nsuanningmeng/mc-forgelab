@@ -25,7 +25,6 @@ window.MCFL = window.MCFL || {};
             <Icon name="spark" className="w-3.5 h-3.5" />
             <span>{t.ws.prompt}</span>
           </div>
-          <StatusBadge variant="warn" label={t.earlyDev} />
         </div>
 
         <textarea

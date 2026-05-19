@@ -81,6 +81,14 @@ window.MCFL.api = (() => {
     // Workflows
     workflows: () => request("GET", "/api/ai/workflows"),
     workflowRuns: () => request("GET", "/api/ai/workflow-runs"),
+    startWorkflowRun: (body) => request("POST", "/api/ai/workflow-runs", body),
+    workflowRun: (runId) => request("GET", `/api/ai/workflow-runs/${runId}`),
+    cancelWorkflowRun: (runId) => request("POST", `/api/ai/workflow-runs/${runId}/cancel`),
+    retryWorkflowRun: (runId, fromStepId) => request("POST", `/api/ai/workflow-runs/${runId}/retry`, { fromStepId }),
+    confirmWorkflowPatch: (runId, decision, editedPatch) =>
+      request("POST", `/api/ai/workflow-runs/${runId}/confirm`, { decision, editedPatch }),
+    streamWorkflowRun: (runId, onEvent) =>
+      stream(`/api/ai/workflow-runs/${runId}/stream`, onEvent),
 
     // Toolchains
     toolchainsDoctor: () => request("GET", "/api/toolchains/doctor"),
