@@ -47,7 +47,8 @@
     },
     "asar": true,
     "asarUnpack": [
-      "**/node_modules/better-sqlite3/**/*"
+      "node_modules/better-sqlite3/build/Release/*.node",
+      "node_modules/better-sqlite3/lib/binding/**/*"
     ],
     "npmRebuild": true,
     "buildDependenciesFromSource": false,
