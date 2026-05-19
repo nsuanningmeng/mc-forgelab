@@ -53,7 +53,10 @@ window.MCFL = window.MCFL || {};
     };
 
     const handleTargetChange = (val) => {
-      setForm(f => ({ ...f, target: val, mcVersion: '' }));
+      // Don't reset mcVersion when the user changes target. The picker
+      // now uses a universal version list, so a previously-picked
+      // version stays valid across target changes.
+      setForm(f => ({ ...f, target: val }));
     };
 
     return (
