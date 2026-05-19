@@ -2,18 +2,10 @@ import type { StorageBackend } from "./storage.js";
 
 export interface Migration {
   readonly id: string;
-  /** 必须幂等：迁移已应用时不应抛错。runMigrations 通过元表确保只执行一次 */
+  /** Must be idempotent. runMigrations records applied ids in the metadata table. */
   apply(backend: StorageBackend): void;
 }
 
-/**
- * 阶段 1 基础迁移：
- * - _mcforgelab_migrations 元表
- * - settings 表
- * - projects 表（占位骨架，字段名匹配 SQLite snake_case 约定）
- * - builds 表（占位）
- * - artifacts 表（占位）
- */
 export const BASE_MIGRATIONS: ReadonlyArray<Migration> = [
   {
     id: "0001_init",
@@ -87,14 +79,38 @@ export const BASE_MIGRATIONS: ReadonlyArray<Migration> = [
         CREATE INDEX IF NOT EXISTS idx_artifacts_build ON artifacts(build_id);
       `);
     }
+  },
+  {
+    id: "0012_build_persistence",
+    apply(backend) {
+      const buildColumns = backend.all<{ name: string }>("PRAGMA table_info(builds)");
+      const hasErrorSummary = buildColumns.some((col) => col.name === "error_summary");
+      if (!hasErrorSummary) {
+        backend.exec("ALTER TABLE builds ADD COLUMN error_summary TEXT");
+      }
+
+      backend.exec(`
+        CREATE TABLE IF NOT EXISTS build_events (
+          id TEXT PRIMARY KEY,
+          build_id TEXT NOT NULL,
+          type TEXT NOT NULL,
+          line TEXT,
+          payload_json TEXT,
+          created_at TEXT NOT NULL,
+          sequence INTEGER NOT NULL,
+          FOREIGN KEY (build_id) REFERENCES builds(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_build_events_build ON build_events(build_id, sequence);
+      `);
+
+      backend.run(
+        "UPDATE builds SET status = 'interrupted', finished_at = COALESCE(finished_at, ?) WHERE status IN ('running', 'queued')",
+        [new Date().toISOString()]
+      );
+    }
   }
 ];
 
-/**
- * 顺序执行尚未应用的迁移。
- * 设计要点：每条迁移在事务内执行（SQLite 支持 DDL 事务），失败回滚。
- * 内存 backend 不支持事务，按线性顺序应用即可。
- */
 export function runMigrations(backend: StorageBackend, migrations: ReadonlyArray<Migration>): void {
   backend.exec(`CREATE TABLE IF NOT EXISTS _mcforgelab_migrations (
     id TEXT PRIMARY KEY,
@@ -146,7 +162,7 @@ export const STAGE6_MIGRATIONS: ReadonlyArray<Migration> = [
           minecraft_version TEXT NOT NULL DEFAULT '',
           java_version INTEGER NOT NULL DEFAULT 17,
           created_at TEXT NOT NULL,
-          expires_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL DEFAULT '',
           downloadable INTEGER NOT NULL DEFAULT 1
         );
         CREATE INDEX IF NOT EXISTS idx_artifacts_v2_project ON artifacts_v2(project_id);
@@ -156,4 +172,3 @@ export const STAGE6_MIGRATIONS: ReadonlyArray<Migration> = [
     }
   }
 ];
-

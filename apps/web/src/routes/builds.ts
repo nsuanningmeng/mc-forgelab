@@ -8,6 +8,15 @@ interface ProjectRow {
   java_version: number;
 }
 
+interface BuildEventRow {
+  build_id: string;
+  type: string;
+  line: string | null;
+  payload_json: string | null;
+  created_at: string;
+  sequence: number;
+}
+
 function serializeBuild(b: {
   buildId: string;
   projectId: string;
@@ -28,6 +37,44 @@ function serializeBuild(b: {
     lineCount: b.lines.length,
     logPath: b.logPath,
   };
+}
+
+function isTerminalStatus(status: string): boolean {
+  return status === "success" || status === "failed" || status === "canceled" || status === "interrupted";
+}
+
+function loadBuildEventRows(ctx: AppContext, buildId: string): BuildEventRow[] {
+  const rows = ctx.storage.backend.all<BuildEventRow>(
+    "SELECT build_id, type, line, payload_json, created_at, sequence FROM build_events WHERE build_id = ? ORDER BY sequence",
+    [buildId]
+  );
+  return rows
+    .filter((row) => row.build_id === buildId)
+    .sort((a, b) => a.sequence - b.sequence);
+}
+
+function parsePayload(payloadJson: string | null): unknown {
+  if (!payloadJson) return null;
+  try {
+    return JSON.parse(payloadJson);
+  } catch {
+    return null;
+  }
+}
+
+function serializeEventRow(row: BuildEventRow): { type: string; [k: string]: unknown } {
+  const event: { type: string; [k: string]: unknown } = { type: row.type };
+  if (typeof row.line === "string") event.line = row.line;
+
+  const payload = parsePayload(row.payload_json);
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    Object.assign(event, payload as Record<string, unknown>);
+    event.type = row.type;
+  } else if (payload !== null) {
+    event.payload = payload;
+  }
+
+  return event;
 }
 
 export async function registerBuildRoutes(app: FastifyInstance, ctx: AppContext) {
@@ -122,6 +169,17 @@ export async function registerBuildRoutes(app: FastifyInstance, ctx: AppContext)
         safeWrite(`data: ${JSON.stringify(event)}\n\n`);
       };
 
+      if (isTerminalStatus(entry.status) || entry.status !== "running") {
+        for (const row of loadBuildEventRows(ctx, req.params.buildId)) {
+          if (closed) break;
+          send(serializeEventRow(row));
+        }
+        send({ type: "done" });
+        closed = true;
+        try { reply.raw.end(); } catch { /* ignore */ }
+        return reply;
+      }
+
       const replayStart = Math.max(0, entry.lines.length - 1000);
       for (let i = replayStart; i < entry.lines.length; i++) {
         if (closed) break;
@@ -134,32 +192,35 @@ export async function registerBuildRoutes(app: FastifyInstance, ctx: AppContext)
         finishedAt: entry.finishedAt,
       });
 
-      if (entry.status !== "running" && entry.status !== "queued") {
-        send({ type: "done" });
+      let unsubscribe: (() => void) | undefined;
+      let ping: NodeJS.Timeout | undefined;
+      const cleanup = () => {
+        if (closed) return;
+        closed = true;
+        if (ping) clearInterval(ping);
+        unsubscribe?.();
         try { reply.raw.end(); } catch { /* ignore */ }
-        return reply;
-      }
+      };
 
-      const unsubscribe = ctx.builds.subscribe(req.params.buildId, (ev) => {
-        if (closed) { unsubscribe(); return; }
+      unsubscribe = ctx.builds.subscribe(req.params.buildId, (ev) => {
+        if (closed) {
+          cleanup();
+          return;
+        }
         send({ type: ev.type, line: ev.line, status: ev.status, errorSummary: ev.errorSummary, finishedAt: ev.finishedAt });
         if (ev.type === "done") {
           cleanup();
         }
       });
 
-      const ping = setInterval(() => {
-        if (closed) { clearInterval(ping); return; }
+      ping = setInterval(() => {
+        if (closed) {
+          cleanup();
+          return;
+        }
         safeWrite(`: ping\n\n`);
       }, 25_000);
 
-      const cleanup = () => {
-        if (closed) return;
-        closed = true;
-        clearInterval(ping);
-        unsubscribe();
-        try { reply.raw.end(); } catch { /* ignore */ }
-      };
       req.raw.on("close", cleanup);
       req.raw.on("error", cleanup);
 

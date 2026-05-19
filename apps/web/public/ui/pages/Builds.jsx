@@ -97,7 +97,28 @@ window.MCFL = window.MCFL || {};
       }
     };
 
+    const cancelBuild = async () => {
+      if (!project || !activeBuildId) return;
+      if (!window.confirm(t.build.cancelBuildConfirm)) return;
+      try {
+        await api.cancelBuild(project.id, activeBuildId);
+        loadBuilds();
+      } catch (err) {
+        setError(err.message || String(err));
+      }
+    };
+
     const isRunning = activeBuild && (activeBuild.status === "running" || activeBuild.status === "queued");
+
+    const getStatusLabel = (status) => {
+      if (status === "interrupted") return t.build.interrupted;
+      return t.build[status] || status;
+    };
+
+    const getStatusVariant = (status) => {
+      if (status === "interrupted") return "warn";
+      return statusVariant(status);
+    };
 
     return (
       <div className="p-6 max-w-[1700px] mx-auto">
@@ -165,7 +186,7 @@ window.MCFL = window.MCFL || {};
                     )}
                   >
                     <div className="flex items-center gap-2">
-                      <StatusBadge variant={statusVariant(b.status)} label={b.status} />
+                      <StatusBadge variant={getStatusVariant(b.status)} label={getStatusLabel(b.status)} />
                       <span className={cx.j("text-2xs text-tx3 ml-auto", cx.mono)}>
                         {fmtDuration(b.startedAt, b.finishedAt)}
                       </span>
@@ -191,7 +212,13 @@ window.MCFL = window.MCFL || {};
             {activeBuild ? (
               <>
                 <div className={cx.j(cx.card, "px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2")}>
-                  <StatusBadge variant={statusVariant(activeBuild.status)} label={activeBuild.status} />
+                  <StatusBadge variant={getStatusVariant(activeBuild.status)} label={getStatusLabel(activeBuild.status)} />
+                  {isRunning && (
+                    <button onClick={cancelBuild} className={cx.btnSecondary}>
+                      <Icon name="close" className="w-3.5 h-3.5" />
+                      {t.build.cancelBuild}
+                    </button>
+                  )}
                   <span className="text-2xs text-tx2 uppercase tracking-wider">{t.build.startedAt}:</span>
                   <span className={cx.j("text-2xs text-tx1", cx.mono)}>{(activeBuild.startedAt || "").slice(0, 19).replace("T", " ")}</span>
                   <span className="text-2xs text-tx2 uppercase tracking-wider">{t.build.duration}:</span>

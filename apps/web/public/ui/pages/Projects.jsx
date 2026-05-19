@@ -36,6 +36,17 @@ window.MCFL = window.MCFL || {};
       }
     };
 
+    const handleDelete = async (project) => {
+      if (!window.confirm(t.proj.confirmDelete)) return;
+      try {
+        await api.deleteProject(project.id);
+        if (onSelectProject) onSelectProject(null);
+        reload();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+
     const handleTargetChange = (val) => {
       setForm(f => ({ ...f, target: val, mcVersion: '' }));
     };
@@ -110,7 +121,12 @@ window.MCFL = window.MCFL || {};
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {projects.map(p => (
-              <ProjectCard key={p.id} project={p} onSelect={onSelectProject} />
+              <ProjectCard 
+                key={p.id} 
+                project={p} 
+                onSelect={onSelectProject} 
+                onDelete={handleDelete}
+              />
             ))}
           </div>
         )}

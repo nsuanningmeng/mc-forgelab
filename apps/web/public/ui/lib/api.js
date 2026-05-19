@@ -78,6 +78,12 @@ window.MCFL.api = (() => {
     testProvider: (id) => request("POST", `/api/ai/providers/${id}/test`),
     providerModels: (id) => request("GET", `/api/ai/providers/${id}/models`),
 
+    // Model profiles
+    modelProfiles: () => request("GET", "/api/ai/model-profiles"),
+    createModelProfile: (body) => request("POST", "/api/ai/model-profiles", body),
+    updateModelProfile: (id, body) => request("PATCH", `/api/ai/model-profiles/${id}`, body),
+    deleteModelProfile: (id) => request("DELETE", `/api/ai/model-profiles/${id}`),
+
     // Workflows
     workflows: () => request("GET", "/api/ai/workflows"),
     workflowRuns: () => request("GET", "/api/ai/workflow-runs"),
@@ -97,6 +103,7 @@ window.MCFL.api = (() => {
     builds: (projectId) => request("GET", `/api/projects/${projectId}/builds`),
     build: (projectId, buildId) => request("GET", `/api/projects/${projectId}/builds/${buildId}`),
     startBuild: (projectId, body) => request("POST", `/api/projects/${projectId}/builds`, body ?? {}),
+    cancelBuild: (projectId, buildId) => request("DELETE", `/api/projects/${projectId}/builds/${buildId}`),
     streamBuild: (projectId, buildId, onEvent) =>
       stream(`/api/projects/${projectId}/builds/${buildId}/stream`, onEvent),
   };

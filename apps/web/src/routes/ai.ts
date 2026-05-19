@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "./types.js";
 import { AppError } from "@mc-forgelab/app-error";
+import type { ModelProfileRecord, ModelRole } from "@mc-forgelab/ai-provider-manager";
 
 function serializeProvider(row: Record<string, unknown>) {
   return {
@@ -55,6 +56,215 @@ function validateProviderInput(body: {
     if (typeof body.enabled !== "boolean") return "enabled must be a boolean";
   }
   return null;
+}
+
+const API_MODEL_PROFILE_ROLES = [
+  "generalModel",
+  "plannerModel",
+  "architectModel",
+  "codeModel",
+  "reviewModel",
+  "fixModel",
+  "docModel",
+  "summarizerModel"
+] as const;
+
+type ApiModelProfileRole = (typeof API_MODEL_PROFILE_ROLES)[number];
+
+const PROFILE_ROLE_SET = new Set<string>(API_MODEL_PROFILE_ROLES);
+
+const API_TO_MODEL_ROLE: Record<ApiModelProfileRole, ModelRole> = {
+  generalModel: "general",
+  plannerModel: "planner",
+  architectModel: "architect",
+  codeModel: "coder",
+  reviewModel: "reviewer",
+  fixModel: "fixer",
+  docModel: "docs",
+  summarizerModel: "summarizer"
+};
+
+const MODEL_TO_API_ROLE: Record<ModelRole, ApiModelProfileRole> = {
+  general: "generalModel",
+  planner: "plannerModel",
+  architect: "architectModel",
+  coder: "codeModel",
+  reviewer: "reviewModel",
+  fixer: "fixModel",
+  docs: "docModel",
+  summarizer: "summarizerModel"
+};
+
+const PROFILE_CREATE_KEYS = new Set([
+  "name",
+  "providerId",
+  "model",
+  "role",
+  "temperature",
+  "maxTokens",
+  "topP",
+  "timeoutMs",
+  "systemPrompt",
+  "enabled"
+]);
+
+const PROFILE_UPDATE_KEYS = new Set([
+  "name",
+  "providerId",
+  "model",
+  "role",
+  "temperature",
+  "maxTokens",
+  "topP",
+  "timeoutMs",
+  "systemPrompt",
+  "enabled"
+]);
+
+interface NormalizedProfileInput {
+  name?: string;
+  providerId?: string;
+  model?: string;
+  role?: ModelRole;
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  timeoutMs?: number;
+  systemPrompt?: string;
+  enabled?: boolean;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasOwn(body: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(body, key);
+}
+
+function serializeModelProfile(profile: ModelProfileRecord) {
+  return {
+    ...profile,
+    role: MODEL_TO_API_ROLE[profile.role]
+  };
+}
+
+function validateNumber(
+  value: unknown,
+  field: string,
+  min: number,
+  max: number,
+  integer = false
+): string | null {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < min ||
+    value > max ||
+    (integer && !Number.isInteger(value))
+  ) {
+    return `${field} must be a ${integer ? "integer" : "number"} between ${min} and ${max}`;
+  }
+  return null;
+}
+
+function validateProfileInput(body: unknown, mode: "create" | "update"): { input?: NormalizedProfileInput; error?: string } {
+  if (!isRecord(body)) return { error: "Body must be an object" };
+
+  const allowed = mode === "create" ? PROFILE_CREATE_KEYS : PROFILE_UPDATE_KEYS;
+  for (const key of Object.keys(body)) {
+    if (!allowed.has(key)) return { error: `${key} is not allowed` };
+  }
+  if (mode === "update" && Object.keys(body).length === 0) {
+    return { error: "At least one field is required" };
+  }
+
+  const input: NormalizedProfileInput = {};
+
+  if (mode === "create" || hasOwn(body, "name")) {
+    if (typeof body.name !== "string" || body.name.trim().length < 1 || body.name.trim().length > 128) {
+      return { error: "name is required (1-128 chars)" };
+    }
+    input.name = body.name.trim();
+  }
+
+  if (mode === "create" || hasOwn(body, "providerId")) {
+    if (typeof body.providerId !== "string" || body.providerId.trim().length < 1 || body.providerId.trim().length > 128) {
+      return { error: "providerId is required (1-128 chars)" };
+    }
+    input.providerId = body.providerId.trim();
+  }
+
+  if (mode === "create" || hasOwn(body, "model")) {
+    if (typeof body.model !== "string" || body.model.trim().length < 1 || body.model.trim().length > 128) {
+      return { error: "model is required (1-128 chars)" };
+    }
+    input.model = body.model.trim();
+  }
+
+  if (mode === "create" || hasOwn(body, "role")) {
+    if (typeof body.role !== "string" || !PROFILE_ROLE_SET.has(body.role)) {
+      return { error: `role must be one of: ${API_MODEL_PROFILE_ROLES.join(", ")}` };
+    }
+    input.role = API_TO_MODEL_ROLE[body.role as ApiModelProfileRole];
+  }
+
+  if (hasOwn(body, "temperature")) {
+    const err = validateNumber(body.temperature, "temperature", 0, 2);
+    if (err) return { error: err };
+    input.temperature = body.temperature as number;
+  }
+
+  if (hasOwn(body, "maxTokens")) {
+    const err = validateNumber(body.maxTokens, "maxTokens", 1, 200_000, true);
+    if (err) return { error: err };
+    input.maxTokens = body.maxTokens as number;
+  }
+
+  if (hasOwn(body, "topP")) {
+    const err = validateNumber(body.topP, "topP", 0, 1);
+    if (err) return { error: err };
+    input.topP = body.topP as number;
+  }
+
+  if (hasOwn(body, "timeoutMs")) {
+    const err = validateNumber(body.timeoutMs, "timeoutMs", 1000, 600_000, true);
+    if (err) return { error: err };
+    input.timeoutMs = body.timeoutMs as number;
+  }
+
+  if (hasOwn(body, "systemPrompt")) {
+    if (typeof body.systemPrompt !== "string") return { error: "systemPrompt must be a string" };
+    input.systemPrompt = body.systemPrompt;
+  }
+
+  if (hasOwn(body, "enabled")) {
+    if (typeof body.enabled !== "boolean") return { error: "enabled must be a boolean" };
+    input.enabled = body.enabled;
+  }
+
+  return { input };
+}
+
+function setProfileEnabled(ctx: AppContext, id: string, enabled: boolean): void {
+  ctx.storage.backend.run(
+    "UPDATE model_profiles SET enabled = ?, updated_at = ? WHERE id = ?",
+    [enabled ? 1 : 0, new Date().toISOString(), id]
+  );
+}
+
+function profileUpdatePayload(input: NormalizedProfileInput) {
+  return {
+    name: input.name,
+    providerId: input.providerId,
+    model: input.model,
+    role: input.role,
+    temperature: input.temperature,
+    maxTokens: input.maxTokens,
+    topP: input.topP,
+    timeoutMs: input.timeoutMs,
+    systemPrompt: input.systemPrompt,
+  };
 }
 
 function runSnapshot(ctx: AppContext, runId: string) {
@@ -383,6 +593,133 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
 
       await ctx.workflowRuntime.confirmPatch(req.params.runId, req.body.decision, req.body.editedPatch);
       return reply.status(202).send({ ok: true });
+    }
+  );
+
+  app.get("/api/ai/model-profiles", async () => {
+    return ctx.providers.listProfiles().map(serializeModelProfile);
+  });
+
+  app.get<{ Params: { id: string } }>(
+    "/api/ai/model-profiles/:id",
+    async (req, reply) => {
+      try {
+        return serializeModelProfile(ctx.providers.getProfile(req.params.id));
+      } catch (e) {
+        if (e instanceof AppError) return reply.status(e.httpStatus).send({ error: e.messageEn, code: e.code });
+        throw e;
+      }
+    }
+  );
+
+  app.post<{ Body?: unknown }>(
+    "/api/ai/model-profiles",
+    async (req, reply) => {
+      const validation = validateProfileInput(req.body ?? {}, "create");
+      if (validation.error) return reply.status(400).send({ error: validation.error });
+      const input = validation.input!;
+
+      try {
+        ctx.providers.getProvider(input.providerId as string);
+      } catch (e) {
+        if (e instanceof AppError) return reply.status(400).send({ error: e.messageEn, code: e.code });
+        throw e;
+      }
+
+      try {
+        let created = ctx.providers.createProfile({
+          name: input.name as string,
+          providerId: input.providerId as string,
+          model: input.model as string,
+          role: input.role as ModelRole,
+          temperature: input.temperature,
+          maxTokens: input.maxTokens,
+          topP: input.topP,
+          timeoutMs: input.timeoutMs,
+          systemPrompt: input.systemPrompt,
+        });
+
+        if (input.enabled !== undefined && input.enabled !== created.enabled) {
+          setProfileEnabled(ctx, created.id, input.enabled);
+          created = ctx.providers.getProfile(created.id);
+        }
+
+        ctx.auditor.log({
+          eventType: "model_profile.create",
+          entityType: "model_profile",
+          entityId: created.id,
+          payload: {
+            name: created.name,
+            providerId: created.providerId,
+            model: created.model,
+            role: created.role,
+            enabled: created.enabled
+          }
+        });
+
+        return reply.status(201).send(serializeModelProfile(created));
+      } catch (e) {
+        if (e instanceof AppError) return reply.status(e.httpStatus).send({ error: e.messageEn, code: e.code });
+        throw e;
+      }
+    }
+  );
+
+  app.patch<{ Params: { id: string }; Body?: unknown }>(
+    "/api/ai/model-profiles/:id",
+    async (req, reply) => {
+      const validation = validateProfileInput(req.body ?? {}, "update");
+      if (validation.error) return reply.status(400).send({ error: validation.error });
+      const input = validation.input!;
+
+      if (input.providerId) {
+        try {
+          ctx.providers.getProvider(input.providerId);
+        } catch (e) {
+          if (e instanceof AppError) return reply.status(400).send({ error: e.messageEn, code: e.code });
+          throw e;
+        }
+      }
+
+      try {
+        let updated = ctx.providers.updateProfile(req.params.id, profileUpdatePayload(input));
+        if (input.enabled !== undefined && input.enabled !== updated.enabled) {
+          setProfileEnabled(ctx, req.params.id, input.enabled);
+          updated = ctx.providers.getProfile(req.params.id);
+        }
+
+        ctx.auditor.log({
+          eventType: "model_profile.update",
+          entityType: "model_profile",
+          entityId: req.params.id,
+          payload: {
+            name: updated.name,
+            providerId: updated.providerId,
+            model: updated.model,
+            role: updated.role,
+            enabled: updated.enabled
+          }
+        });
+
+        return serializeModelProfile(updated);
+      } catch (e) {
+        if (e instanceof AppError) return reply.status(e.httpStatus).send({ error: e.messageEn, code: e.code });
+        throw e;
+      }
+    }
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    "/api/ai/model-profiles/:id",
+    async (req, reply) => {
+      try {
+        ctx.providers.deleteProfile(req.params.id);
+        ctx.auditor.log({ eventType: "model_profile.delete", entityType: "model_profile", entityId: req.params.id });
+        return reply.status(204).send();
+      } catch (e) {
+        if (e instanceof AppError) return reply.status(e.httpStatus).send({ error: e.messageEn, code: e.code });
+        throw e;
+      }
     }
   );
 }

@@ -1,7 +1,7 @@
 window.MCFL = window.MCFL || {};
 (function () {
   const { useState, useEffect, useCallback } = React;
-  const { cx, api, PageHeader, EmptyState, StatusBadge, Icon, ProviderForm } = window.MCFL;
+  const { cx, api, PageHeader, EmptyState, StatusBadge, Icon, ProviderForm, ModelProfileForm } = window.MCFL;
 
   function Section({ title, description, badge, children }) {
     return (
@@ -45,9 +45,34 @@ window.MCFL = window.MCFL || {};
     );
   }
 
+  function ModelProfileRow({ row, providers, t, onDelete }) {
+    const tf = t.settings.profiles;
+    const provider = providers.find(p => p.id === row.providerId);
+    return (
+      <div className="px-3 py-2.5 flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-tx1 truncate">{row.name}</span>
+            <StatusBadge variant="info" label={tf.roleOptions[row.role] || row.role} dot={false} />
+          </div>
+          <div className={cx.j("text-2xs text-tx3 mt-0.5 truncate", cx.mono)}>
+            {provider?.displayName || row.providerId} · {row.model} · T:{row.temperature}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button onClick={() => onDelete(row)} className={cx.btnIcon} title={tf.delete}>
+            <Icon name="trash" className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   function Settings({ t, lang, onSetLang, onSetTheme, theme }) {
     const [providers, setProviders] = useState(null);
-    const [showForm, setShowForm] = useState(false);
+    const [profiles, setProfiles] = useState(null);
+    const [showProviderForm, setShowProviderForm] = useState(false);
+    const [showProfileForm, setShowProfileForm] = useState(false);
     const [busy, setBusy] = useState(null);
     const [error, setError] = useState(null);
     const [testResult, setTestResult] = useState(null);
@@ -55,17 +80,24 @@ window.MCFL = window.MCFL || {};
     const reload = useCallback(() => {
       setError(null);
       api.providers().then(setProviders).catch(() => setProviders([]));
+      api.modelProfiles().then(setProfiles).catch(() => setProfiles([]));
     }, []);
 
     useEffect(reload, [reload]);
 
-    const handleSave = async (body) => {
+    const handleSaveProvider = async (body) => {
       await api.createProvider(body);
-      setShowForm(false);
+      setShowProviderForm(false);
       reload();
     };
 
-    const handleToggle = async (p) => {
+    const handleSaveProfile = async (body) => {
+      await api.createModelProfile(body);
+      setShowProfileForm(false);
+      reload();
+    };
+
+    const handleToggleProvider = async (p) => {
       try {
         await api.updateProvider(p.id, { enabled: !p.enabled });
         reload();
@@ -74,7 +106,7 @@ window.MCFL = window.MCFL || {};
       }
     };
 
-    const handleDelete = async (p) => {
+    const handleDeleteProvider = async (p) => {
       if (!window.confirm(t.settings.providers.confirmDelete)) return;
       try {
         await api.deleteProvider(p.id);
@@ -84,7 +116,17 @@ window.MCFL = window.MCFL || {};
       }
     };
 
-    const handleTest = async (p) => {
+    const handleDeleteProfile = async (row) => {
+      if (!window.confirm(t.settings.profiles.confirmDelete)) return;
+      try {
+        await api.deleteModelProfile(row.id);
+        reload();
+      } catch (err) {
+        setError(err.message || String(err));
+      }
+    };
+
+    const handleTestProvider = async (p) => {
       setBusy(p.id);
       setTestResult(null);
       setError(null);
@@ -99,7 +141,8 @@ window.MCFL = window.MCFL || {};
       }
     };
 
-    const tf = t.settings.providers;
+    const tfp = t.settings.providers;
+    const tfl = t.settings.profiles;
     const desc = t.settings.descriptions;
 
     return (
@@ -113,25 +156,48 @@ window.MCFL = window.MCFL || {};
             
             {providers === null ? (
               <span className="text-tx3">{t.common.loading}…</span>
-            ) : providers.length === 0 && !showForm ? (
-              <EmptyState icon="cpu" title={tf.empty} action={<button onClick={() => setShowForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tf.add}</button>} />
+            ) : providers.length === 0 && !showProviderForm ? (
+              <EmptyState icon="cpu" title={tfp.empty} action={<button onClick={() => setShowProviderForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tfp.add}</button>} />
             ) : (
               <div className="space-y-2">
-                {!showForm && (
-                  <div className="flex justify-end"><button onClick={() => setShowForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tf.add}</button></div>
+                {!showProviderForm && (
+                  <div className="flex justify-end"><button onClick={() => setShowProviderForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tfp.add}</button></div>
                 )}
-                {showForm && <ProviderForm t={t} mode="create" onSave={handleSave} onCancel={() => setShowForm(false)} />}
+                {showProviderForm && <ProviderForm t={t} mode="create" onSave={handleSaveProvider} onCancel={() => setShowProviderForm(false)} />}
                 {providers.length > 0 && (
                   <div className={cx.j(cx.card, "divide-y divide-border")}>
-                    {providers.map(p => <ProviderRow key={p.id} p={p} t={t} busy={busy} onToggle={handleToggle} onDelete={handleDelete} onTest={handleTest} />)}
+                    {providers.map(p => <ProviderRow key={p.id} p={p} t={t} busy={busy} onToggle={handleToggleProvider} onDelete={handleDeleteProvider} onTest={handleTestProvider} />)}
                   </div>
                 )}
               </div>
             )}
           </Section>
 
-          <Section title={t.settings.groups.models} description={desc.models} badge={<StatusBadge variant="planned" label={t.planned} />}>
-            <div className="italic text-tx3 opacity-60">— Model Profile Editor is being integrated —</div>
+          <Section title={t.settings.groups.models} description={desc.models} badge={<StatusBadge variant="success" label="active" dot={false} />}>
+            {profiles === null ? (
+              <span className="text-tx3">{t.common.loading}…</span>
+            ) : profiles.length === 0 && !showProfileForm ? (
+              <EmptyState icon="box" title={tfl.empty} action={<button onClick={() => setShowProfileForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tfl.add}</button>} />
+            ) : (
+              <div className="space-y-2">
+                {!showProfileForm && (
+                  <div className="flex justify-end"><button onClick={() => setShowProfileForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tfl.add}</button></div>
+                )}
+                {showProfileForm && (
+                  <ModelProfileForm 
+                    t={t} 
+                    providers={providers || []} 
+                    onSave={handleSaveProfile} 
+                    onCancel={() => setShowProfileForm(false)} 
+                  />
+                )}
+                {profiles.length > 0 && (
+                  <div className={cx.j(cx.card, "divide-y divide-border")}>
+                    {profiles.map(row => <ModelProfileRow key={row.id} row={row} providers={providers || []} t={t} onDelete={handleDeleteProfile} />)}
+                  </div>
+                )}
+              </div>
+            )}
           </Section>
 
           <Section title={t.settings.groups.toolchains} description={desc.toolchains} badge={<StatusBadge variant="success" label="active" dot={false} />}>

@@ -36,12 +36,20 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   // Surface the resolved DB path on startup so anyone can verify which
   // file the server actually opens. Mismatched modes between launcher
   // (desktop / docker / web) and the embedded server would otherwise
-  // silently land in a different database — the v0.3.0 "providers
-  // disappear after install" report is the kind of symptom this avoids.
+  // silently land in a different database.
   // eslint-disable-next-line no-console
   console.log(`[mc-forgelab] mode=${cfg.mode} db=${cfg.paths.db}`);
+  // Persistence rule:
+  // - Real on-disk paths require sqlite. Falling back to memory there
+  //   would silently lose user data on every restart (this is the same
+  //   failure mode behind "providers/projects disappear after upgrade"
+  //   reports — a prebuilt binding that mismatches the host Node/
+  //   Electron ABI). Hard-fail instead so the launcher can recover.
+  // - The literal ":memory:" path is an explicit opt-in to ephemeral
+  //   storage and is used by tests + ad-hoc demos.
+  const wantsMemory = cfg.paths.db === ":memory:";
   const storage = await openStorage({
-    backend: "auto",
+    backend: wantsMemory ? "memory" : "sqlite",
     dbPath: cfg.paths.db,
     migrations: [
       ...BASE_MIGRATIONS,
@@ -52,6 +60,17 @@ export async function buildApp(opts: BuildAppOptions = {}) {
       ...STAGE_WEB_MIGRATIONS
     ],
   });
+  // Report the backend actually selected so persistence regressions
+  // are visible in startup logs and /api/health.
+  // eslint-disable-next-line no-console
+  console.log(`[mc-forgelab] storage.backend=${storage.backend.name}`);
+  if (storage.backend.name === "memory") {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[mc-forgelab] WARNING: running with in-memory storage; all data will be lost on restart. " +
+      "This is expected when MC_FORGELAB_DB=:memory: (tests/demos)."
+    );
+  }
   applyKnowledgeMigration(storage);
   const artifacts = createArtifactManager(storage);
   const providers = createProviderManager(storage);
@@ -62,7 +81,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     engine: workflowEngine,
     workflows: BUILTIN_WORKFLOWS
   });
-  const builds = createBuildRegistry();
+  const builds = createBuildRegistry(storage);
   const auditor = createAuditLogger(storage);
 
   const app = Fastify({ logger: true });
@@ -101,7 +120,12 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   await registerTargetRoutes(app);
   await registerKnowledgeRoutes(app);
   await registerAuditRoutes(app, ctx);
-  app.get("/api/health", async () => ({ ok: true, version: "0.3.1" }));
+  app.get("/api/health", async () => ({
+    ok: true,
+    version: "0.3.2",
+    storage: storage.backend.name,
+    persistent: storage.backend.name === "sqlite",
+  }));
 
   app.addHook("onClose", async () => {
     workflowRuntime.closeAll();

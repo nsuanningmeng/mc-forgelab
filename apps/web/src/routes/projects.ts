@@ -75,6 +75,11 @@ export async function registerProjectRoutes(app: FastifyInstance, ctx: AppContex
   app.delete<{ Params: { id: string } }>("/api/projects/:id", async (req, reply) => {
     const row = ctx.storage.backend.get("SELECT id FROM projects WHERE id = ?", [req.params.id]);
     if (!row) return reply.status(404).send({ error: "Project not found" });
+    // Refuse while a build is still running — deleting now would orphan
+    // the in-memory build process and any events it persists afterward.
+    if (ctx.builds.hasActive(req.params.id)) {
+      return reply.status(409).send({ error: "Cannot delete project while a build is running. Cancel the build first." });
+    }
     ctx.storage.backend.run("DELETE FROM projects WHERE id = ?", [req.params.id]);
     ctx.auditor.log({ eventType: "project.delete", entityType: "project", entityId: req.params.id });
     return reply.status(204).send();
