@@ -75,10 +75,9 @@ window.MCFL = window.MCFL || {};
                   <option value="">— Select Target —</option>
                   {targets.map(tg => {
                     const name = tg.displayName || tg.name || tg.id;
-                    const tag = tg.stability && tg.stability !== "stable" ? ` (${tg.stability})` : "";
                     return (
                       <option key={tg.id} value={tg.id}>
-                        {name}{tag}
+                        {name}
                       </option>
                     );
                   })}

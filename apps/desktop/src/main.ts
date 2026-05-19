@@ -14,7 +14,7 @@ let win: BrowserWindow | null = null;
 
 async function start() {
   const cfg = loadConfig({ mode: "desktop" });
-  const { app: fastify } = await buildApp();
+  const { app: fastify } = await buildApp({ cfg });
   await fastify.listen({ port: 0, host: "127.0.0.1" });
   const addr = fastify.server.address();
   const port = typeof addr === "object" && addr ? addr.port : 3000;
@@ -34,7 +34,6 @@ async function start() {
   });
   win.loadURL(`http://127.0.0.1:${port}`);
   win.on("closed", () => { win = null; fastify.close(); });
-  void cfg;
 }
 
 app.whenReady().then(start).catch((err) => {

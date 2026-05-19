@@ -9,6 +9,8 @@ interface McVersionOption {
   readonly buildTool: string;
 }
 
+// Known Minecraft versions surfaced as project creation options. Order
+// is preserved (oldest first) so the dropdown grouping by major works.
 const KNOWN_MC_VERSIONS = [
   "1.16.5",
   "1.17.1",
@@ -23,6 +25,20 @@ const KNOWN_MC_VERSIONS = [
   "1.21.3",
   "1.21.4"
 ];
+
+// Java version expected by Mojang for each Minecraft major. Used to
+// override per-target `recommendedJava` so the hint under the version
+// picker is accurate even when the target's versionConstraint covers
+// multiple MC majors.
+function javaForMcVersion(version: string): number {
+  const [maj, min] = version.split(".").map((n) => Number.parseInt(n, 10));
+  if (maj !== 1) return 21;
+  if (min === undefined) return 21;
+  if (min <= 16) return 8;
+  if (min === 17) return 16;
+  if (min >= 18 && min <= 20) return 17;
+  return 21;
+}
 
 function serializeTarget(target: Target) {
   return {
@@ -60,37 +76,32 @@ function compareMcVersion(a: string, b: string): number {
   return 0;
 }
 
-function matchesRange(version: string, range: string): boolean {
-  const parts = range.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 1 && !/^[<>]=?/.test(parts[0]!)) return compareMcVersion(version, parts[0]!) === 0;
-
-  return parts.every((part) => {
-    const match = part.match(/^(>=|<=|>|<|=)?(.+)$/);
-    if (!match) return true;
-    const op = match[1] ?? "=";
-    const bound = match[2]!;
-    const cmp = compareMcVersion(version, bound);
-    if (op === ">=") return cmp >= 0;
-    if (op === "<=") return cmp <= 0;
-    if (op === ">") return cmp > 0;
-    if (op === "<") return cmp < 0;
-    return cmp === 0;
-  });
+// Per-target lower-bound floor for MC support, used to filter out
+// versions that simply don't exist for that ecosystem (Folia / NeoForge
+// only appeared mid-1.20; Quilt only from 1.18).
+function minMajorFor(targetId: string): number {
+  switch (targetId) {
+    case "folia": return 20;       // Folia is 1.20+
+    case "neoforge": return 20;    // NeoForge forked from Forge at 1.20
+    case "quilt": return 18;       // Quilt Loader stable from 1.18
+    default: return 16;             // everything else covers 1.16 onward
+  }
 }
 
-function expandConstraint(target: Target, constraint: TargetVersionConstraint): McVersionOption[] {
-  const candidates = target.stability === "stable"
-    ? KNOWN_MC_VERSIONS.filter((v) => v.startsWith("1.20.") || v.startsWith("1.21"))
-    : KNOWN_MC_VERSIONS;
+function targetSupportsVersion(target: Target, version: string): boolean {
+  const [maj, min] = version.split(".").map((n) => Number.parseInt(n, 10));
+  if (maj !== 1) return false;
+  const floor = minMajorFor(target.id);
+  return min !== undefined && min >= floor;
+}
 
-  return candidates
-    .filter((version) => matchesRange(version, constraint.minecraftRange))
-    .map((version) => ({
-      version,
-      recommendedJava: constraint.recommendedJava,
-      recommendedGradle: constraint.recommendedGradle,
-      buildTool: target.recommendedBuildTool
-    }));
+function gradleHintFor(_constraint: TargetVersionConstraint | undefined, mcMajor: number): string | undefined {
+  // Newer MC versions need newer Gradle. Coarse mapping that is good
+  // enough for the picker hint; CLI/buildtool layer enforces specifics.
+  if (mcMajor >= 21) return "8.10";
+  if (mcMajor >= 20) return "8.7";
+  if (mcMajor >= 18) return "7.6";
+  return "7.5";
 }
 
 export async function registerTargetRoutes(app: FastifyInstance) {
@@ -110,14 +121,17 @@ export async function registerTargetRoutes(app: FastifyInstance) {
     const target = registry.find(req.params.id);
     if (!target) return reply.status(404).send({ error: "Target not found" });
 
-    const seen = new Set<string>();
     const versions: McVersionOption[] = [];
-    for (const constraint of target.versionConstraints) {
-      for (const item of expandConstraint(target, constraint)) {
-        if (seen.has(item.version)) continue;
-        seen.add(item.version);
-        versions.push(item);
-      }
+    for (const version of KNOWN_MC_VERSIONS) {
+      if (!targetSupportsVersion(target, version)) continue;
+      const [, mcMin] = version.split(".").map((n) => Number.parseInt(n, 10));
+      const constraint = target.versionConstraints[0];
+      versions.push({
+        version,
+        recommendedJava: javaForMcVersion(version),
+        recommendedGradle: gradleHintFor(constraint, mcMin ?? 0),
+        buildTool: target.recommendedBuildTool
+      });
     }
 
     return versions.sort((a, b) => compareMcVersion(a.version, b.version));

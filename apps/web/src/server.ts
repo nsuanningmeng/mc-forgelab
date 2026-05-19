@@ -8,7 +8,7 @@ import { STAGE2_MIGRATIONS, createProviderManager } from "@mc-forgelab/ai-provid
 import { STAGE3_MIGRATIONS, createWorkflowEngine, createWorkflowRuntime, BUILTIN_WORKFLOWS } from "@mc-forgelab/ai-workflow-engine";
 import { applyMigration as applyKnowledgeMigration, STAGE7_MIGRATIONS } from "@mc-forgelab/knowledge-base";
 import { createArtifactManager } from "@mc-forgelab/artifact-manager";
-import { loadConfig } from "@mc-forgelab/config";
+import { loadConfig, type AppConfig } from "@mc-forgelab/config";
 import { AppError } from "@mc-forgelab/app-error";
 import { registerProjectRoutes } from "./routes/projects.js";
 import { registerArtifactRoutes } from "./routes/artifacts.js";
@@ -23,8 +23,23 @@ import { createAuditLogger, STAGE_WEB_MIGRATIONS } from "./lib/audit.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export async function buildApp() {
-  const cfg = loadConfig({ mode: "web" });
+export interface BuildAppOptions {
+  /** Optional pre-resolved config. If omitted, buildApp resolves config
+   *  itself with `loadConfig({ mode: "web" })`. The desktop / docker
+   *  launchers MUST pass their own resolved cfg so per-mode data paths
+   *  stay consistent. */
+  cfg?: AppConfig;
+}
+
+export async function buildApp(opts: BuildAppOptions = {}) {
+  const cfg = opts.cfg ?? loadConfig({ mode: "web" });
+  // Surface the resolved DB path on startup so anyone can verify which
+  // file the server actually opens. Mismatched modes between launcher
+  // (desktop / docker / web) and the embedded server would otherwise
+  // silently land in a different database — the v0.3.0 "providers
+  // disappear after install" report is the kind of symptom this avoids.
+  // eslint-disable-next-line no-console
+  console.log(`[mc-forgelab] mode=${cfg.mode} db=${cfg.paths.db}`);
   const storage = await openStorage({
     backend: "auto",
     dbPath: cfg.paths.db,
@@ -86,7 +101,7 @@ export async function buildApp() {
   await registerTargetRoutes(app);
   await registerKnowledgeRoutes(app);
   await registerAuditRoutes(app, ctx);
-  app.get("/api/health", async () => ({ ok: true, version: "0.3.0" }));
+  app.get("/api/health", async () => ({ ok: true, version: "0.3.1" }));
 
   app.addHook("onClose", async () => {
     workflowRuntime.closeAll();
