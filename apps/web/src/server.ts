@@ -122,7 +122,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   await registerAuditRoutes(app, ctx);
   app.get("/api/health", async () => ({
     ok: true,
-    version: "0.3.2",
+    version: "0.3.3",
     storage: storage.backend.name,
     persistent: storage.backend.name === "sqlite",
   }));

@@ -112,6 +112,14 @@ function makeStorage(backend: StorageBackend): Storage {
 // ──────────────────────────────────────────────────────────────────────────
 
 async function createSqliteBackend(dbPath: string): Promise<StorageBackend> {
+  // Ensure parent directory exists for real on-disk paths. Skipping this for
+  // ":memory:" keeps that path free of side effects. mkdir failures still
+  // surface as STORAGE_OPEN_FAILED via the catch in openStorage().
+  if (dbPath !== ":memory:") {
+    const { mkdirSync } = await import("node:fs");
+    const { dirname } = await import("node:path");
+    mkdirSync(dirname(dbPath), { recursive: true });
+  }
   // 通过动态 import + createRequire 隔离 native CJS module，保持本包对外 ESM。
   const { createRequire } = await import("node:module");
   const require = createRequire(import.meta.url);

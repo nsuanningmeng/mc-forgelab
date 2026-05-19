@@ -1,6 +1,6 @@
 {
   "name": "@mc-forgelab/desktop",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "type": "module",
   "main": "dist/main.js",
@@ -10,7 +10,8 @@
     "dist": "tsc -b && electron-builder",
     "typecheck": "tsc -b",
     "test": "echo \"no tests\" && exit 0",
-    "clean": "rimraf dist *.tsbuildinfo"
+    "clean": "rimraf dist *.tsbuildinfo",
+    "rebuild:native": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@mc-forgelab/web": "workspace:*",
@@ -27,9 +28,11 @@
     "@mc-forgelab/project-model": "workspace:*",
     "@mc-forgelab/file-operation": "workspace:*",
     "@mc-forgelab/compatibility": "workspace:*",
-    "@mc-forgelab/target-registry": "workspace:*"
+    "@mc-forgelab/target-registry": "workspace:*",
+    "better-sqlite3": "^11.5.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.6.1",
     "@types/node": "^22.10.0",
     "electron": "^30.0.0",
     "electron-builder": "^25.1.8",
@@ -42,9 +45,18 @@
     "directories": {
       "output": "release"
     },
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**/*"
+    ],
+    "npmRebuild": true,
+    "buildDependenciesFromSource": false,
     "files": [
       "dist/**/*",
       "package.json",
+      "node_modules/better-sqlite3/**/*",
+      "node_modules/bindings/**/*",
+      "node_modules/file-uri-to-path/**/*",
       "node_modules/@mc-forgelab/*/dist/**/*",
       "node_modules/@mc-forgelab/*/package.json",
       "node_modules/@mc-forgelab/web/public/**/*"

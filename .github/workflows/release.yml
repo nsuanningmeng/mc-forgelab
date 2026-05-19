@@ -38,6 +38,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build --filter=!@mc-forgelab/desktop
       - run: pnpm --filter @mc-forgelab/desktop build
+      - name: Rebuild native modules for Electron
+        run: pnpm exec electron-builder install-app-deps
+        working-directory: apps/desktop
       - name: Package desktop
         run: npx electron-builder --publish never
         working-directory: apps/desktop
