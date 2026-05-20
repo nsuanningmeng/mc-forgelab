@@ -1,3 +1,5 @@
+import type { ModelRole } from "@mc-forgelab/ai-provider-manager";
+
 export type WorkflowMode = "single-model" | "multi-model" | "custom";
 export type WorkflowRunStatus = "pending" | "running" | "success" | "failed" | "canceled";
 export type WorkflowStepStatus = "pending" | "running" | "success" | "failed" | "skipped";
@@ -7,6 +9,26 @@ export type StepRole =
   | "build_error_analyzer" | "auto_fixer" | "documentation_writer" | "final_summarizer"
   | "system_template_init" | "system_apply_patch" | "system_build" | "system_package"
   | "auto_fix_loop";
+
+export const STEP_ROLE_TO_MODEL_ROLE: Readonly<Record<StepRole, ModelRole | null>> = {
+  requirement_analyst: "planner",
+  architect: "architect",
+  code_generator: "coder",
+  code_reviewer: "reviewer",
+  build_error_analyzer: "fixer",
+  auto_fixer: "fixer",
+  documentation_writer: "docs",
+  final_summarizer: "summarizer",
+  system_template_init: null,
+  system_apply_patch: null,
+  system_build: null,
+  system_package: null,
+  auto_fix_loop: null
+};
+
+export function resolveModelRole(stepRole: StepRole): ModelRole | null {
+  return STEP_ROLE_TO_MODEL_ROLE[stepRole];
+}
 
 export interface WorkflowStepDef {
   readonly id: string;

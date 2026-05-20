@@ -91,7 +91,8 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   const workflowRuntime = createWorkflowRuntime({
     storage,
     engine: workflowEngine,
-    workflows: BUILTIN_WORKFLOWS
+    workflows: BUILTIN_WORKFLOWS,
+    providers
   });
   const builds = createBuildRegistry(storage);
   const auditor = createAuditLogger(storage);

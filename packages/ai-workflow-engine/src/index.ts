@@ -4,4 +4,6 @@ export * from "./engine.js";
 export * from "./migrations.js";
 export * from "./runtime.js";
 export * from "./fake-provider-adapter.js";
+export * from "./chat-adapter.js";
+export * from "./provider-resolver.js";
 export * from "./context.js";

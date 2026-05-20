@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { AppError } from "@mc-forgelab/app-error";
+import type { ProviderManager } from "@mc-forgelab/ai-provider-manager";
 import type { Storage } from "@mc-forgelab/storage";
 import type { WorkflowEngine } from "./engine.js";
 import type { StepRole, WorkflowDefinition, WorkflowRunStatus, WorkflowStepDef, WorkflowStepStatus } from "./types.js";
 import { applyStepOutput, createContext, resolveStepInputs, type WorkflowContextSnapshot } from "./context.js";
-import { createFakeProviderAdapter } from "./fake-provider-adapter.js";
+import { createFakeChatAdapter, createRealChatAdapter, type ChatAdapter } from "./chat-adapter.js";
+import { createProviderResolver } from "./provider-resolver.js";
 
 type RuntimeRunStatus = WorkflowRunStatus | "waiting_confirmation";
 type StepRuntimeStatus = "success" | "failed" | "skipped";
@@ -44,6 +47,14 @@ interface RuntimeDeps {
   readonly storage: Storage;
   readonly engine: WorkflowEngine;
   readonly workflows: readonly WorkflowDefinition[];
+  readonly providers?: ProviderManager;
+}
+
+interface ResolvedChatAdapter {
+  readonly adapter: ChatAdapter;
+  readonly providerId: string;
+  readonly model: string;
+  readonly source: "fake" | "real";
 }
 
 interface RunningRun {
@@ -86,7 +97,8 @@ function nextTick(fn: () => void): void {
 }
 
 export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
-  const provider = createFakeProviderAdapter();
+  const fakeProvider = createFakeChatAdapter();
+  const providerResolver = createProviderResolver(deps.providers);
   const running = new Map<string, RunningRun>();
   const eventSequences = new Map<string, number>();
 
@@ -213,10 +225,28 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
     }
   }
 
-  async function executeStep(runId: string, step: WorkflowStepDef, sequence: number, context: WorkflowContextSnapshot, signal: AbortSignal): Promise<void> {
+  function resolveChatAdapter(step: WorkflowStepDef, runProviderId?: string | null, runModel?: string | null): ResolvedChatAdapter {
+    const resolved = providerResolver.resolve(step, runProviderId, runModel);
+    if (!resolved) {
+      return {
+        adapter: fakeProvider,
+        providerId: "fake",
+        model: "fake-model",
+        source: "fake"
+      };
+    }
+    return {
+      adapter: createRealChatAdapter(resolved.adapter, resolved.profile),
+      providerId: resolved.providerId,
+      model: resolved.model,
+      source: "real"
+    };
+  }
+
+  async function executeStep(runId: string, step: WorkflowStepDef, sequence: number, context: WorkflowContextSnapshot, runProviderId: string | null, runModel: string | null, signal: AbortSignal): Promise<void> {
     const started = Date.now();
     const stepRecord = deps.engine.createStep(runId, step.id, step.role, step.modelProfile);
-    deps.storage.backend.run("UPDATE ai_workflow_steps SET sequence=?, provider_id=?, model=? WHERE id=?", [sequence, null, null, stepRecord.id]);
+    deps.storage.backend.run("UPDATE ai_workflow_steps SET sequence=? WHERE id=?", [sequence, stepRecord.id]);
     deps.engine.updateStepStatus(stepRecord.id, "running");
     emit({ type: "step_started", runId, stepRowId: stepRecord.id, stepId: step.id, role: step.role, sequence });
 
@@ -237,16 +267,47 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
     let value: unknown;
     let tokensIn = 0;
     let tokensOut = 0;
+    const failStep = (error: unknown): void => {
+      const durationMs = Date.now() - started;
+      const message = error instanceof AppError ? error.messageEn : (error instanceof Error ? error.message : String(error));
+      deps.storage.backend.run("UPDATE ai_workflow_steps SET duration_ms=? WHERE id=?", [durationMs, stepRecord.id]);
+      deps.engine.updateStepStatus(stepRecord.id, "failed", { inputTokens: tokensIn, outputTokens: tokensOut, errorMessage: message });
+      emit({ type: "step_finished", runId, stepRowId: stepRecord.id, stepId: step.id, status: "failed", outputSummary: message, tokensIn, tokensOut, durationMs });
+    };
 
     if (isModelStep(step)) {
-      emit({ type: "step_log", runId, stepRowId: stepRecord.id, line: `Invoking fake provider for ${step.role}.` });
-      emit({ type: "step_log", runId, stepRowId: stepRecord.id, line: "Resolved deterministic step inputs." });
-      const response = await provider.invoke(step.role, promptFromInputs(inputs), inputs);
-      throwIfAborted(runId, signal);
-      value = response.text;
-      tokensIn = response.tokensIn;
-      tokensOut = response.tokensOut;
-      emit({ type: "model_delta", runId, stepRowId: stepRecord.id, chunk: response.text.slice(0, 160) });
+      try {
+        const resolved = resolveChatAdapter(step, runProviderId, runModel);
+        deps.storage.backend.run(
+          "UPDATE ai_workflow_steps SET provider_id=?, model=? WHERE id=?",
+          [resolved.providerId, resolved.model, stepRecord.id]
+        );
+        emit({
+          type: "step_log",
+          runId,
+          stepRowId: stepRecord.id,
+          line: resolved.source === "fake"
+            ? `Invoking fake provider for ${step.role}.`
+            : `Invoking provider ${resolved.providerId} model ${resolved.model} for ${step.role}.`
+        });
+        if (resolved.source === "fake" && (runProviderId || deps.providers)) {
+          emit({ type: "step_log", runId, stepRowId: stepRecord.id, line: "WARNING: No matching provider/profile found, falling back to fake provider." });
+        }
+        emit({ type: "step_log", runId, stepRowId: stepRecord.id, line: "Resolved step inputs." });
+        const response = await resolved.adapter.invoke(step.role, promptFromInputs(inputs), inputs, {
+          signal,
+          onDelta: (chunk) => {
+            if (chunk.length > 0) emit({ type: "model_delta", runId, stepRowId: stepRecord.id, chunk });
+          }
+        });
+        throwIfAborted(runId, signal);
+        value = response.text;
+        tokensIn = response.tokensIn;
+        tokensOut = response.tokensOut;
+      } catch (error) {
+        failStep(error);
+        throw error;
+      }
     } else {
       value = await runTool(step);
       throwIfAborted(runId, signal);
@@ -309,7 +370,7 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i]!;
         try {
-          await executeStep(runId, step, startIndex + i + 1, context, signal);
+          await executeStep(runId, step, startIndex + i + 1, context, run.selectedProviderId, run.selectedModel, signal);
         } catch (error) {
           if (!step.required) {
             continue;
