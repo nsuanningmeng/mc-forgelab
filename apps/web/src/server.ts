@@ -6,10 +6,12 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openStorage, BASE_MIGRATIONS, STAGE6_MIGRATIONS } from "@mc-forgelab/storage";
 import { STAGE2_MIGRATIONS, createProviderManager } from "@mc-forgelab/ai-provider-manager";
-import { STAGE3_MIGRATIONS, createWorkflowEngine, createWorkflowRuntime, BUILTIN_WORKFLOWS } from "@mc-forgelab/ai-workflow-engine";
+import { STAGE3_MIGRATIONS, createWorkflowEngine, createWorkflowRuntime, BUILTIN_WORKFLOWS, type BuildRunner, type PatchApplier, type WorkflowBuildResult } from "@mc-forgelab/ai-workflow-engine";
 import { applyMigration as applyKnowledgeMigration, STAGE7_MIGRATIONS } from "@mc-forgelab/knowledge-base";
 import { createArtifactManager } from "@mc-forgelab/artifact-manager";
 import { loadConfig, type AppConfig } from "@mc-forgelab/config";
+import { runBuild } from "@mc-forgelab/build-orchestrator";
+import { createFileOperationService, type FilePatch } from "@mc-forgelab/file-operation";
 import { AppError } from "@mc-forgelab/app-error";
 import { registerProjectRoutes } from "./routes/projects.js";
 import { registerArtifactRoutes } from "./routes/artifacts.js";
@@ -24,6 +26,60 @@ import { createAuditLogger, STAGE_WEB_MIGRATIONS } from "./lib/audit.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_VERSION = readPackageVersion();
+
+function errorMessage(error: unknown): string {
+  if (error instanceof AppError) return error.messageEn;
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+function isToolchainUnavailableError(error: unknown): boolean {
+  return /toolchain|jdk|java|gradle|JAVA_HOME|executable/i.test(errorMessage(error));
+}
+
+function createWorkflowBuildRunner(cfg: AppConfig): BuildRunner {
+  return {
+    async run(input): Promise<WorkflowBuildResult> {
+      try {
+        const record = await runBuild(input.projectId, {
+          workspaceRoot: cfg.paths.workspace,
+          projectPath: input.projectPath,
+          javaVersion: input.javaVersion,
+          timeoutMs: input.timeoutMs,
+          logsDir: join(cfg.paths.workspace, "logs"),
+          signal: input.signal
+        }, input.onLog);
+
+        const status = record.status === "success"
+          ? "success"
+          : record.status === "canceled"
+            ? "canceled"
+            : "failed";
+
+        return {
+          status,
+          errorSummary: record.errorSummary,
+          errorCode: status === "failed" ? "BUILD_FAILED" : status === "canceled" ? "CANCELED" : undefined
+        };
+      } catch (error) {
+        const message = errorMessage(error);
+        if (input.signal.aborted) return { status: "canceled", errorCode: "CANCELED", errorSummary: "Workflow run canceled." };
+        if (isToolchainUnavailableError(error)) return { status: "failed", errorCode: "TOOLCHAIN_UNAVAILABLE", errorSummary: message };
+        return { status: "failed", errorCode: "UNKNOWN", errorSummary: message };
+      }
+    }
+  };
+}
+
+function createWorkflowPatchApplier(): PatchApplier {
+  const files = createFileOperationService();
+  return {
+    async apply(input) {
+      const parsed = JSON.parse(input.patch) as FilePatch;
+      return files.applyPatch(input.projectPath, parsed);
+    }
+  };
+}
 
 function readPackageVersion(): string {
   try {
@@ -88,11 +144,19 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   const providers = createProviderManager(storage);
   const workflowEngine = createWorkflowEngine(storage);
   workflowEngine.seedBuiltins();
+  const buildRunner = createWorkflowBuildRunner(cfg);
+  const patchApplier = createWorkflowPatchApplier();
   const workflowRuntime = createWorkflowRuntime({
     storage,
     engine: workflowEngine,
     workflows: BUILTIN_WORKFLOWS,
-    providers
+    providers,
+    config: {
+      workspaceRoot: cfg.paths.workspace,
+      logsDir: join(cfg.paths.workspace, "logs")
+    },
+    buildRunner,
+    patchApplier
   });
   const builds = createBuildRegistry(storage);
   const auditor = createAuditLogger(storage);

@@ -1,3 +1,5 @@
+import type { WorkflowBuildResult } from "./types.js";
+
 export interface WorkflowContextSnapshot {
   userPrompt?: string;
   projectId?: string;
@@ -10,11 +12,7 @@ export interface WorkflowContextSnapshot {
   buildLog?: string;
   artifacts?: string;
   finalSummary?: string;
-  buildResult?: {
-    status: "success" | "failed";
-    log?: string;
-    errorSummary?: string;
-  };
+  buildResult?: WorkflowBuildResult;
 }
 
 type WorkflowContextKey = keyof WorkflowContextSnapshot;

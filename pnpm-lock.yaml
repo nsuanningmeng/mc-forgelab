@@ -193,6 +193,9 @@ importers:
       '@mc-forgelab/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@mc-forgelab/file-operation':
+        specifier: workspace:*
+        version: link:../../packages/file-operation
       '@mc-forgelab/knowledge-base':
         specifier: workspace:*
         version: link:../../packages/knowledge-base

@@ -42,6 +42,52 @@ export interface WorkflowStepDef {
   readonly condition?: string;
 }
 
+export type WorkflowBuildStatus = "success" | "failed" | "canceled";
+
+export type WorkflowBuildErrorCode =
+  | "TOOLCHAIN_UNAVAILABLE"
+  | "BUILD_FAILED"
+  | "CANCELED"
+  | "UNKNOWN";
+
+export interface RuntimeConfig {
+  readonly workspaceRoot: string;
+  readonly logsDir?: string;
+  readonly buildTimeoutMs?: number;
+  readonly maxAutoFixTokens?: number;
+}
+
+export interface BuildRunnerInput {
+  readonly projectId: string;
+  readonly projectPath: string;
+  readonly javaVersion?: 8 | 11 | 17 | 21;
+  readonly timeoutMs?: number;
+  readonly signal: AbortSignal;
+  readonly onLog: (line: string) => void;
+}
+
+export interface WorkflowBuildResult {
+  readonly status: WorkflowBuildStatus;
+  readonly log?: string;
+  readonly errorSummary?: string | null;
+  readonly errorCode?: WorkflowBuildErrorCode;
+}
+
+export interface BuildRunner {
+  run(input: BuildRunnerInput): Promise<WorkflowBuildResult>;
+}
+
+export interface PatchApplier {
+  apply(input: { readonly projectPath: string; readonly patch: string }): Promise<{ applied: number; errors: string[] }>;
+}
+
+export interface ToolExecutionContext {
+  readonly runId: string;
+  readonly stepRowId: string;
+  readonly signal: AbortSignal;
+  readonly emitLog: (line: string) => void;
+}
+
 export interface WorkflowDefinition {
   readonly id: string;
   readonly name: string;

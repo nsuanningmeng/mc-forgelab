@@ -40,6 +40,7 @@
     "@mc-forgelab/artifact-manager": "workspace:*",
     "@mc-forgelab/build-orchestrator": "workspace:*",
     "@mc-forgelab/config": "workspace:*",
+    "@mc-forgelab/file-operation": "workspace:*",
     "@mc-forgelab/knowledge-base": "workspace:*",
     "@mc-forgelab/project-model": "workspace:*",
     "@mc-forgelab/storage": "workspace:*",

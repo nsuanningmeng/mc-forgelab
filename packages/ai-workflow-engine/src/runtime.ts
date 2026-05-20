@@ -1,15 +1,33 @@
 import { randomUUID } from "node:crypto";
+import { join } from "node:path";
 import { AppError } from "@mc-forgelab/app-error";
 import type { ProviderManager } from "@mc-forgelab/ai-provider-manager";
 import type { Storage } from "@mc-forgelab/storage";
 import type { WorkflowEngine } from "./engine.js";
-import type { StepRole, WorkflowDefinition, WorkflowRunStatus, WorkflowStepDef, WorkflowStepStatus } from "./types.js";
+import type {
+  BuildRunner,
+  PatchApplier,
+  RuntimeConfig,
+  StepRole,
+  ToolExecutionContext,
+  WorkflowBuildResult,
+  WorkflowDefinition,
+  WorkflowRunStatus,
+  WorkflowStepDef,
+  WorkflowStepStatus
+} from "./types.js";
 import { applyStepOutput, createContext, resolveStepInputs, type WorkflowContextSnapshot } from "./context.js";
-import { createFakeChatAdapter, createRealChatAdapter, type ChatAdapter } from "./chat-adapter.js";
+import { createFakeChatAdapter, createRealChatAdapter, type ChatAdapter, type ChatAdapterResult } from "./chat-adapter.js";
 import { createProviderResolver } from "./provider-resolver.js";
 
 type RuntimeRunStatus = WorkflowRunStatus | "waiting_confirmation";
 type StepRuntimeStatus = "success" | "failed" | "skipped";
+type JavaVersion = 8 | 11 | 17 | 21;
+
+const BUILD_LOG_TAIL_LINES = 300;
+const DEFAULT_MAX_AUTO_FIX_TOKENS = 100_000;
+const MAX_AUTO_FIX_ROUNDS = 10;
+const SUPPORTED_AUTO_FIX_CONDITION = "buildResult.status == failed";
 
 export type RuntimeEvent =
   | { type: "run_started"; runId: string; workflowId: string }
@@ -48,6 +66,9 @@ interface RuntimeDeps {
   readonly engine: WorkflowEngine;
   readonly workflows: readonly WorkflowDefinition[];
   readonly providers?: ProviderManager;
+  readonly config?: RuntimeConfig;
+  readonly buildRunner?: BuildRunner;
+  readonly patchApplier?: PatchApplier;
 }
 
 interface ResolvedChatAdapter {
@@ -77,6 +98,16 @@ interface EventRow {
   readonly payload_json: string;
 }
 
+interface ProjectRuntimeRow {
+  readonly project_path: string | null;
+  readonly java_version: number | null;
+}
+
+interface ProjectBuildConfig {
+  readonly projectPath: string;
+  readonly javaVersion?: JavaVersion;
+}
+
 const TERMINAL_RUN_STATUSES = new Set<string>(["success", "failed", "canceled"]);
 
 function isModelStep(step: WorkflowStepDef): boolean {
@@ -94,6 +125,50 @@ function promptFromInputs(inputs: Record<string, string>): string {
 
 function nextTick(fn: () => void): void {
   setImmediate(fn);
+}
+
+function isJavaVersion(value: number | null | undefined): value is JavaVersion {
+  return value === 8 || value === 11 || value === 17 || value === 21;
+}
+
+function tailLog(log: string | undefined, fallbackLines: readonly string[]): string | undefined {
+  const lines = log !== undefined ? log.split(/\r?\n/) : fallbackLines.slice();
+  const tail = lines.filter((line) => line.length > 0).slice(-BUILD_LOG_TAIL_LINES);
+  return tail.length > 0 ? tail.join("\n") : undefined;
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof AppError) return error.messageEn;
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+function isToolchainUnavailableError(error: unknown): boolean {
+  const message = errorMessage(error);
+  return /toolchain|jdk|java|gradle|JAVA_HOME|executable/i.test(message);
+}
+
+function firstNonEmptyInput(inputs: Record<string, string>): string {
+  return Object.values(inputs).find((value) => value.trim().length > 0) ?? "";
+}
+
+function evaluateAutoFixCondition(condition: string | undefined, context: WorkflowContextSnapshot): boolean | "unsupported" {
+  const normalized = condition?.trim() ?? SUPPORTED_AUTO_FIX_CONDITION;
+  if (normalized !== SUPPORTED_AUTO_FIX_CONDITION) return "unsupported";
+  return context.buildResult?.status === "failed";
+}
+
+function makeVirtualModelStep(base: WorkflowStepDef, role: "build_error_analyzer" | "auto_fixer"): WorkflowStepDef {
+  return {
+    id: `${base.id}:${role}`,
+    role,
+    modelProfile: base.modelProfile,
+    required: true
+  };
+}
+
+function tokenTotal(tokensIn: number, tokensOut: number): number {
+  return tokensIn + tokensOut;
 }
 
 export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
@@ -204,7 +279,191 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
     });
   }
 
-  async function runTool(step: WorkflowStepDef): Promise<unknown> {
+  function resolveProjectBuildConfig(projectId: string | undefined): ProjectBuildConfig {
+    const workspaceRoot = deps.config?.workspaceRoot ?? process.cwd();
+    if (!projectId) return { projectPath: workspaceRoot };
+
+    try {
+      const row = deps.storage.backend.get<ProjectRuntimeRow>(
+        "SELECT project_path, java_version FROM projects WHERE id = ?",
+        [projectId]
+      );
+      const projectPath = row?.project_path && row.project_path.length > 0
+        ? row.project_path
+        : join(workspaceRoot, "projects", projectId);
+      const javaVersion = isJavaVersion(row?.java_version) ? row.java_version : undefined;
+      return { projectPath, javaVersion };
+    } catch {
+      return { projectPath: join(workspaceRoot, "projects", projectId) };
+    }
+  }
+
+  async function executeBuild(projectId: string | undefined, toolContext: ToolExecutionContext): Promise<WorkflowBuildResult> {
+    if (!deps.buildRunner) {
+      toolContext.emitLog("No BuildRunner configured; using fake build result.");
+      return { status: "success", log: "Fake build completed successfully." };
+    }
+
+    if (!projectId) {
+      return {
+        status: "failed",
+        errorCode: "UNKNOWN",
+        errorSummary: "Project id is required for system_build."
+      };
+    }
+
+    const lines: string[] = [];
+    const project = resolveProjectBuildConfig(projectId);
+    try {
+      const result = await deps.buildRunner.run({
+        projectId,
+        projectPath: project.projectPath,
+        javaVersion: project.javaVersion,
+        timeoutMs: deps.config?.buildTimeoutMs,
+        signal: toolContext.signal,
+        onLog: (line) => {
+          lines.push(line);
+          toolContext.emitLog(line);
+        }
+      });
+
+      return {
+        ...result,
+        log: tailLog(result.log, lines),
+        errorCode: result.errorCode ?? (result.status === "failed" ? "BUILD_FAILED" : result.status === "canceled" ? "CANCELED" : undefined)
+      };
+    } catch (error) {
+      const message = errorMessage(error);
+      if (toolContext.signal.aborted) {
+        return { status: "canceled", errorCode: "CANCELED", errorSummary: "Workflow run canceled.", log: tailLog(undefined, lines) };
+      }
+      if (isToolchainUnavailableError(error)) {
+        return { status: "failed", errorCode: "TOOLCHAIN_UNAVAILABLE", errorSummary: message, log: tailLog(undefined, lines) };
+      }
+      return { status: "failed", errorCode: "UNKNOWN", errorSummary: message, log: tailLog(undefined, lines) };
+    }
+  }
+
+  async function executeApplyPatch(projectId: string | undefined, patch: string, toolContext: ToolExecutionContext): Promise<{ applied: number; errors: string[] } | string> {
+    if (!deps.patchApplier) {
+      toolContext.emitLog("No PatchApplier configured; using fake patch result.");
+      return "Patch applied successfully by the deterministic v0.3.0 stub.";
+    }
+
+    if (!projectId) {
+      throw new Error("Project id is required for system_apply_patch.");
+    }
+
+    if (!patch.trim()) {
+      throw new Error("No patch content supplied.");
+    }
+
+    const project = resolveProjectBuildConfig(projectId);
+    const result = await deps.patchApplier.apply({ projectPath: project.projectPath, patch });
+    if (result.errors.length > 0) {
+      throw new Error(`Patch apply failed: ${result.errors.join("; ")}`);
+    }
+    toolContext.emitLog(`Patch applied successfully: ${result.applied} operation(s).`);
+    return result;
+  }
+
+  async function invokeAutoFixModel(
+    baseStep: WorkflowStepDef,
+    role: "build_error_analyzer" | "auto_fixer",
+    inputs: Record<string, string>,
+    runProviderId: string | null,
+    runModel: string | null,
+    toolContext: ToolExecutionContext
+  ): Promise<ChatAdapterResult> {
+    const virtualStep = makeVirtualModelStep(baseStep, role);
+    const resolved = resolveChatAdapter(virtualStep, runProviderId, runModel);
+    toolContext.emitLog(
+      resolved.source === "fake"
+        ? `Auto-fix invoking fake provider for ${role}.`
+        : `Auto-fix invoking provider ${resolved.providerId} model ${resolved.model} for ${role}.`
+    );
+    return resolved.adapter.invoke(role, promptFromInputs(inputs), inputs, { signal: toolContext.signal });
+  }
+
+  async function executeAutoFixLoop(
+    step: WorkflowStepDef,
+    workflowContext: WorkflowContextSnapshot,
+    runProviderId: string | null,
+    runModel: string | null,
+    toolContext: ToolExecutionContext
+  ): Promise<{ status: StepRuntimeStatus; outputSummary: string; tokensIn: number; tokensOut: number }> {
+    const condition = evaluateAutoFixCondition(step.condition, workflowContext);
+    if (condition === "unsupported") {
+      toolContext.emitLog(`Skipped auto-fix loop because condition is not whitelisted: ${step.condition ?? ""}`);
+      return { status: "skipped", outputSummary: "Skipped because condition is not supported.", tokensIn: 0, tokensOut: 0 };
+    }
+    if (!condition) {
+      return { status: "skipped", outputSummary: "Skipped because build did not fail.", tokensIn: 0, tokensOut: 0 };
+    }
+
+    const projectId = workflowContext.projectId;
+    const maxRounds = Math.min(MAX_AUTO_FIX_ROUNDS, Math.max(1, step.maxRounds ?? 5));
+    const maxTokens = deps.config?.maxAutoFixTokens ?? DEFAULT_MAX_AUTO_FIX_TOKENS;
+    let tokensIn = 0;
+    let tokensOut = 0;
+    let lastError = workflowContext.buildResult?.errorSummary ?? "Build failed.";
+
+    for (let round = 1; round <= maxRounds; round++) {
+      throwIfAborted(toolContext.runId, toolContext.signal);
+      toolContext.emitLog(`Auto-fix round ${round}/${maxRounds} started.`);
+
+      try {
+        const buildResultText = JSON.stringify(workflowContext.buildResult ?? {});
+        const analyzer = await invokeAutoFixModel(step, "build_error_analyzer", {
+          buildResult: buildResultText,
+          buildLog: workflowContext.buildResult?.log ?? workflowContext.buildLog ?? "",
+          errorSummary: workflowContext.buildResult?.errorSummary ?? ""
+        }, runProviderId, runModel, toolContext);
+        tokensIn += analyzer.tokensIn;
+        tokensOut += analyzer.tokensOut;
+        if (tokenTotal(tokensIn, tokensOut) > maxTokens) {
+          throw new Error(`Auto-fix token budget exceeded (${tokenTotal(tokensIn, tokensOut)}/${maxTokens}).`);
+        }
+
+        const fixer = await invokeAutoFixModel(step, "auto_fixer", {
+          errorAnalysis: analyzer.text,
+          buildResult: buildResultText,
+          buildLog: workflowContext.buildResult?.log ?? workflowContext.buildLog ?? "",
+          projectPlan: workflowContext.projectPlan ?? "",
+          filePatch: workflowContext.filePatch ?? ""
+        }, runProviderId, runModel, toolContext);
+        tokensIn += fixer.tokensIn;
+        tokensOut += fixer.tokensOut;
+        if (tokenTotal(tokensIn, tokensOut) > maxTokens) {
+          throw new Error(`Auto-fix token budget exceeded (${tokenTotal(tokensIn, tokensOut)}/${maxTokens}).`);
+        }
+
+        workflowContext.filePatch = fixer.text;
+        const patchResult = await executeApplyPatch(projectId, fixer.text, toolContext);
+        workflowContext.patchResult = typeof patchResult === "string" ? patchResult : JSON.stringify(patchResult);
+
+        const buildResult = await executeBuild(projectId, toolContext);
+        workflowContext.buildResult = buildResult;
+        workflowContext.buildLog = buildResult.log;
+        lastError = buildResult.errorSummary ?? lastError;
+
+        if (buildResult.status === "success") {
+          return { status: "success", outputSummary: `Auto-fix succeeded after ${round} round(s).`, tokensIn, tokensOut };
+        }
+        toolContext.emitLog(`Auto-fix round ${round} build status: ${buildResult.status}.`);
+      } catch (error) {
+        if (toolContext.signal.aborted) throw error;
+        const message = errorMessage(error);
+        if (message.startsWith("Auto-fix token budget exceeded")) throw error;
+        lastError = message;
+        toolContext.emitLog(`Auto-fix round ${round} failed: ${message}`);
+      }
+    }
+
+    return { status: "failed", outputSummary: `Auto-fix failed after ${maxRounds} round(s): ${lastError}`, tokensIn, tokensOut };
+  }
+
+  async function runTool(step: WorkflowStepDef, inputs: Record<string, string>, workflowContext: WorkflowContextSnapshot, toolContext: ToolExecutionContext): Promise<unknown> {
     switch (step.role) {
       case "system_template_init":
         return JSON.stringify({
@@ -215,9 +474,13 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
           ]
         });
       case "system_apply_patch":
-        return "Patch applied successfully by the deterministic v0.3.0 stub.";
+        return executeApplyPatch(
+          workflowContext.projectId,
+          inputs.filePatch ?? inputs.documentationPatch ?? firstNonEmptyInput(inputs),
+          toolContext
+        );
       case "system_build":
-        return { status: "success" as const, log: "Fake build completed successfully." };
+        return executeBuild(workflowContext.projectId ?? inputs.projectId, toolContext);
       case "system_package":
         return "Generated fake artifact: build/libs/forgelab-generated-0.3.0.jar";
       default:
@@ -252,14 +515,6 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
 
     throwIfAborted(runId, signal);
 
-    if (step.role === "auto_fix_loop") {
-      const durationMs = Date.now() - started;
-      deps.storage.backend.run("UPDATE ai_workflow_steps SET duration_ms=? WHERE id=?", [durationMs, stepRecord.id]);
-      deps.engine.updateStepStatus(stepRecord.id, "skipped", { outputSummary: "Skipped because fake build succeeded." });
-      emit({ type: "step_finished", runId, stepRowId: stepRecord.id, stepId: step.id, status: "skipped", outputSummary: "Skipped because fake build succeeded.", durationMs });
-      return;
-    }
-
     const inputs = resolveStepInputs(context, step.input);
     const inputSummary = summarize(inputs);
     deps.storage.backend.run("UPDATE ai_workflow_steps SET input_summary=? WHERE id=?", [inputSummary, stepRecord.id]);
@@ -274,6 +529,41 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
       deps.engine.updateStepStatus(stepRecord.id, "failed", { inputTokens: tokensIn, outputTokens: tokensOut, errorMessage: message });
       emit({ type: "step_finished", runId, stepRowId: stepRecord.id, stepId: step.id, status: "failed", outputSummary: message, tokensIn, tokensOut, durationMs });
     };
+
+    const toolContext: ToolExecutionContext = {
+      runId,
+      stepRowId: stepRecord.id,
+      signal,
+      emitLog: (line) => emit({ type: "step_log", runId, stepRowId: stepRecord.id, line })
+    };
+
+    if (step.role === "auto_fix_loop") {
+      try {
+        const result = await executeAutoFixLoop(step, context, runProviderId, runModel, toolContext);
+        tokensIn = result.tokensIn;
+        tokensOut = result.tokensOut;
+        const durationMs = Date.now() - started;
+        deps.storage.backend.run("UPDATE ai_workflow_steps SET duration_ms=? WHERE id=?", [durationMs, stepRecord.id]);
+        deps.engine.updateStepStatus(stepRecord.id, result.status, {
+          outputSummary: result.outputSummary,
+          inputTokens: tokensIn,
+          outputTokens: tokensOut,
+          errorMessage: result.status === "failed" ? result.outputSummary : undefined
+        });
+        emit({ type: "step_finished", runId, stepRowId: stepRecord.id, stepId: step.id, status: result.status, outputSummary: result.outputSummary, tokensIn, tokensOut, durationMs });
+        if (result.status === "failed") {
+          throw new Error(result.outputSummary);
+        }
+        return;
+      } catch (error) {
+        // Only call failStep if step wasn't already marked failed above
+        const stepRow = deps.storage.backend.get<{ status: string }>("SELECT status FROM ai_workflow_steps WHERE id = ?", [stepRecord.id]);
+        if (stepRow?.status !== "failed") {
+          failStep(error);
+        }
+        throw error;
+      }
+    }
 
     if (isModelStep(step)) {
       try {
@@ -309,7 +599,7 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         throw error;
       }
     } else {
-      value = await runTool(step);
+      value = await runTool(step, inputs, context, toolContext);
       throwIfAborted(runId, signal);
     }
 
