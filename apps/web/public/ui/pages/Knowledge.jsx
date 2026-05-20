@@ -1,7 +1,7 @@
 window.MCFL = window.MCFL || {};
 (function () {
   const { useState, useEffect, useCallback } = React;
-  const { cx, api, PageHeader, EmptyState, Icon, StatusBadge } = window.MCFL;
+  const { cx, api, PageHeader, EmptyState, Icon, StatusBadge, CustomSelect } = window.MCFL;
 
   function KnowledgeCard({ item }) {
     const tags = Array.isArray(item && item.tags) ? item.tags : [];
@@ -96,24 +96,30 @@ window.MCFL = window.MCFL || {};
           </div>
           <div className="w-40">
             <label className={cx.label}>{t.ws.target}</label>
-            <select className={cx.select} value={filters.target} onChange={(e) => setFilters((f) => ({ ...f, target: e.target.value }))}>
-              <option value="">{t.common.empty}</option>
-              {targets.map((v) => <option key={v} value={v}>{String(v).toUpperCase()}</option>)}
-            </select>
+            <CustomSelect
+              value={filters.target}
+              onChange={(val) => setFilters((f) => ({ ...f, target: val }))}
+              placeholder={t.common.empty}
+              options={[{ value: "", label: t.common.empty }, ...targets.map(v => ({ value: v, label: String(v).toUpperCase() }))]}
+            />
           </div>
           <div className="w-40">
             <label className={cx.label}>{t.proj.mcVersion}</label>
-            <select className={cx.select} value={filters.mcVersion} onChange={(e) => setFilters((f) => ({ ...f, mcVersion: e.target.value }))}>
-              <option value="">{t.common.empty}</option>
-              {mcMajors.map((v) => <option key={v} value={v}>{v}</option>)}
-            </select>
+            <CustomSelect
+              value={filters.mcVersion}
+              onChange={(val) => setFilters((f) => ({ ...f, mcVersion: val }))}
+              placeholder={t.common.empty}
+              options={[{ value: "", label: t.common.empty }, ...mcMajors.map(v => ({ value: v, label: v }))]}
+            />
           </div>
           <div className="w-40">
             <label className={cx.label}>{t.know.topic}</label>
-            <select className={cx.select} value={filters.topic} onChange={(e) => setFilters((f) => ({ ...f, topic: e.target.value }))}>
-              <option value="">{t.know.allTopics}</option>
-              {topics.map((v) => <option key={v} value={v}>{v}</option>)}
-            </select>
+            <CustomSelect
+              value={filters.topic}
+              onChange={(val) => setFilters((f) => ({ ...f, topic: val }))}
+              placeholder={t.know.allTopics}
+              options={[{ value: "", label: t.know.allTopics }, ...topics.map(v => ({ value: v, label: v }))]}
+            />
           </div>
         </div>
 

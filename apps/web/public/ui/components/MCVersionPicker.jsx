@@ -1,7 +1,7 @@
 window.MCFL = window.MCFL || {};
 (function () {
   const { useState, useEffect } = React;
-  const { cx, api } = window.MCFL;
+  const { cx, api, CustomSelect } = window.MCFL;
 
   // Known Minecraft versions. Mirrored from
   // apps/web/src/routes/targets.ts KNOWN_MC_VERSIONS so the picker
@@ -76,23 +76,16 @@ window.MCFL = window.MCFL || {};
 
     return (
       <div className="space-y-2">
-        <select
+        <CustomSelect
           data-testid="project-mcVersion"
-          className={cx.select}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="" className="bg-surface text-tx1">— Select {t.proj.mcVersion} —</option>
-          {Object.entries(groups).map(([label, list]) => (
-            <optgroup key={label} label={label} className="bg-surface text-tx1 font-semibold">
-              {list.map((v) => (
-                <option key={v.version} value={v.version} className="bg-surface text-tx1">
-                  {v.version}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+          onChange={onChange}
+          placeholder={`— Select ${t.proj.mcVersion} —`}
+          groups={Object.entries(groups).map(([label, list]) => ({
+            label,
+            options: list.map(v => ({ value: v.version, label: v.version }))
+          }))}
+        />
 
         {selectedVer && (
           <div className="flex gap-4 text-2xs text-tx3 font-medium uppercase tracking-wider">

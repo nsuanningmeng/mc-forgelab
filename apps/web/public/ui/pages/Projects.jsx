@@ -1,7 +1,7 @@
 window.MCFL = window.MCFL || {};
 (function () {
   const { useState, useEffect } = React;
-  const { cx, api, PageHeader, EmptyState, ProjectCard, Icon, MCVersionPicker } = window.MCFL;
+  const { cx, api, PageHeader, EmptyState, ProjectCard, Icon, MCVersionPicker, CustomSelect } = window.MCFL;
 
   function Projects({ t, onSelectProject, newProjectIntent, onConsumeNewProjectIntent }) {
     const [projects, setProjects] = useState([]);
@@ -99,17 +99,13 @@ window.MCFL = window.MCFL || {};
               </div>
               <div className="space-y-1.5">
                 <label className={cx.label}>{t.proj.target}</label>
-                <select data-testid="project-targetId" required className={cx.select} value={form.target} onChange={e => handleTargetChange(e.target.value)}>
-                  <option value="" className="bg-surface text-tx1">— Select Target —</option>
-                  {targets.map(tg => {
-                    const name = tg.displayName || tg.name || tg.id;
-                    return (
-                      <option key={tg.id} value={tg.id} className="bg-surface text-tx1">
-                        {name}
-                      </option>
-                    );
-                  })}
-                </select>
+                <CustomSelect
+                  data-testid="project-targetId"
+                  value={form.target}
+                  onChange={handleTargetChange}
+                  placeholder="— Select Target —"
+                  options={targets.map(tg => ({ value: tg.id, label: tg.displayName || tg.name || tg.id }))}
+                />
               </div>
               <div className="space-y-1.5">
                 <label className={cx.label}>{t.proj.mcVersion}</label>

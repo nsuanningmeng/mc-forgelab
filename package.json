@@ -1,6 +1,6 @@
 {
   "name": "mc-forgelab",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "private": true,
   "description": "Minecraft plugin / mod / hybrid project generator, builder and download platform — desktop GUI / CLI / WebUI in Docker.",
   "type": "module",
@@ -19,8 +19,13 @@
     "clean": "turbo run clean && rimraf node_modules"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^22.10.0",
+    "jsdom": "^29.1.1",
     "playwright": "^1.60.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
     "rimraf": "^6.0.1",
     "turbo": "^2.3.0",
     "typescript": "^5.6.3",

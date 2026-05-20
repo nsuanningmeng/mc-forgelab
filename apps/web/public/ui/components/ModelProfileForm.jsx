@@ -1,7 +1,7 @@
 window.MCFL = window.MCFL || {};
 (function () {
   const { useState, useEffect } = React;
-  const { cx, api, Icon } = window.MCFL;
+  const { cx, api, Icon, CustomSelect } = window.MCFL;
 
   function ModelProfileForm({ t, providers, initial, onSave, onCancel }) {
     const tf = t.settings.profiles;
@@ -59,17 +59,12 @@ window.MCFL = window.MCFL || {};
 
           <div className="space-y-1.5">
             <label className={cx.label}>{tf.fields.role}</label>
-            <select 
-              required 
+            <CustomSelect
               data-testid="profile-role"
-              className={cx.select} 
-              value={form.role} 
-              onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-            >
-              {Object.entries(tf.roleOptions).map(([val, label]) => (
-                <option key={val} value={val}>{label}</option>
-              ))}
-            </select>
+              value={form.role}
+              onChange={val => setForm(f => ({ ...f, role: val }))}
+              options={Object.entries(tf.roleOptions).map(([val, label]) => ({ value: val, label }))}
+            />
           </div>
 
           <div className="space-y-1.5">
@@ -77,17 +72,12 @@ window.MCFL = window.MCFL || {};
             {noProviders ? (
               <div className="text-2xs text-danger py-2 italic">No providers configured</div>
             ) : (
-              <select 
-                required 
+              <CustomSelect
                 data-testid="profile-providerId"
-                className={cx.select} 
-                value={form.providerId} 
-                onChange={e => setForm(f => ({ ...f, providerId: e.target.value }))}
-              >
-                {providers.map(p => (
-                  <option key={p.id} value={p.id}>{p.displayName}</option>
-                ))}
-              </select>
+                value={form.providerId}
+                onChange={val => setForm(f => ({ ...f, providerId: val }))}
+                options={providers.map(p => ({ value: p.id, label: p.displayName }))}
+              />
             )}
           </div>
 

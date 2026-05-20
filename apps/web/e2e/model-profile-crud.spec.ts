@@ -8,7 +8,7 @@ test.describe('AI Settings CRUD', () => {
     // 1. Create Provider
     const providerSection = page.getByTestId('ai-providers-section');
     await providerSection.getByTestId('add-provider-btn').click();
-    
+
     await page.getByTestId('provider-displayName').fill('E2E Provider');
     await page.getByTestId('provider-baseUrl').fill('http://localhost:9999/v1');
     await page.getByTestId('provider-apiKey').fill('mock-key');
@@ -21,9 +21,17 @@ test.describe('AI Settings CRUD', () => {
     await profileSection.getByTestId('add-profile-btn').click();
 
     await page.getByTestId('profile-name').fill('E2E Profile');
-    await page.getByTestId('profile-providerId').selectOption({ label: 'E2E Provider' });
+
+    // Select Provider (custom dropdown) — use .first() in case of duplicates from shared :memory: DB
+    await page.getByTestId('profile-providerId-trigger').click();
+    await page.getByRole('listbox').getByText('E2E Provider').first().click();
+
     await page.getByTestId('profile-model').fill('gpt-4o-mock');
-    await page.getByTestId('profile-role').selectOption('codeModel');
+
+    // Select Role (custom dropdown) — Chinese locale: "编码模型" for codeModel
+    await page.getByTestId('profile-role-trigger').click();
+    await page.getByRole('listbox').getByText('编码模型').click();
+
     await page.getByTestId('profile-save-btn').click();
 
     await expect(profileSection).toContainText('E2E Profile', { timeout: 10000 });
@@ -32,7 +40,7 @@ test.describe('AI Settings CRUD', () => {
     // Handle dialog
     page.once('dialog', dialog => dialog.accept());
     await profileSection.getByTestId('delete-profile-btn').click();
-    
+
     await expect(profileSection).not.toContainText('E2E Profile', { timeout: 10000 });
   });
 });
