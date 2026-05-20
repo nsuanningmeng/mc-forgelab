@@ -82,7 +82,6 @@ jobs:
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.zip
             apps/desktop/release/*.tar.gz
-            apps/desktop/release/*.blockmap
             apps/desktop/release/latest*.yml
           if-no-files-found: error
 
