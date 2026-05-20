@@ -3,7 +3,7 @@ window.MCFL = window.MCFL || {};
   const { useState, useEffect } = React;
   const { cx, api, MetricCard, ProjectCard, EmptyState, ActivityPanel, Icon } = window.MCFL;
 
-  function Dashboard({ t, onSelectProject }) {
+  function Dashboard({ t, onSelectProject, onStartNewProject }) {
     const [stats, setStats] = useState({ projects: 0, workflows: 0, runs: 0, artifacts: 0 });
     const [projects, setProjects] = useState([]);
     const [runs, setRuns] = useState([]);
@@ -106,7 +106,7 @@ window.MCFL = window.MCFL || {};
             <div className={cx.j(cx.card, "p-4")}>
               <h3 className={cx.sectionTitle}>{t.dash.quickStart}</h3>
               <div className="space-y-2 mt-3">
-                <button className={cx.j(cx.btnSecondary, "w-full justify-start gap-3 h-10 px-4")}>
+                <button data-testid="new-project-btn" onClick={onStartNewProject} className={cx.j(cx.btnSecondary, "w-full justify-start gap-3 h-10 px-4")}>
                   <Icon name="plus" className="w-4 h-4 text-mc" />
                   <span>{t.dash.newProject}</span>
                 </button>

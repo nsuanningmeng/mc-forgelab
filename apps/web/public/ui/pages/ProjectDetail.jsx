@@ -23,20 +23,20 @@ window.MCFL = window.MCFL || {};
     }, [initialProject.id]);
 
     // Backend GET /api/projects/:id returns SQLite rows (snake_case) augmented
-    // with capabilities + warnings. Normalise both shapes so we can read fields
-    // uniformly without a per-call dance.
+    // with capabilities + warnings. The `target` key is an OBJECT (capabilities
+    // payload), not the target id — never bind it directly to a string label.
     const p = project || {};
     const fields = {
       name: p.name || "—",
-      target: p.target || p.target_id || "—",
+      target: p.target_id || "—",
       packageName: p.packageName || p.package_name || "",
       mcVersion: p.mcVersion || p.minecraft_version || "—",
       javaVersion: p.javaVersion || p.java_version || "",
       buildTool: p.buildTool || p.build_tool || "—",
       createdAt: p.createdAt || p.created_at || "",
-      capabilities: p.capabilities || {},
-      warningsZh: Array.isArray(p.warningsZh) ? p.warningsZh : [],
-      warningsEn: Array.isArray(p.warningsEn) ? p.warningsEn : [],
+      capabilities: (p.target && typeof p.target === "object" && p.target.capabilities) || p.capabilities || {},
+      warningsZh: Array.isArray(p.target?.warningsZh) ? p.target.warningsZh : (Array.isArray(p.warningsZh) ? p.warningsZh : []),
+      warningsEn: Array.isArray(p.target?.warningsEn) ? p.target.warningsEn : (Array.isArray(p.warningsEn) ? p.warningsEn : []),
     };
     const warnings = lang === "zh" ? fields.warningsZh : fields.warningsEn;
     const createdLabel = fields.createdAt

@@ -271,6 +271,7 @@ export function createBuildRegistry(storage: Storage): BuildRegistry {
       sequences.set(buildId, 0);
 
       runBuild(opts.projectId, {
+        buildId,
         workspaceRoot: opts.workspaceRoot,
         projectPath: opts.projectPath,
         javaVersion,

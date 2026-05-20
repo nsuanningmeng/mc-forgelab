@@ -3,12 +3,12 @@ window.MCFL = window.MCFL || {};
   const { useState, useEffect } = React;
   const { cx, api, PageHeader, EmptyState, ProjectCard, Icon, MCVersionPicker } = window.MCFL;
 
-  function Projects({ t, onSelectProject }) {
+  function Projects({ t, onSelectProject, newProjectIntent, onConsumeNewProjectIntent }) {
     const [projects, setProjects] = useState([]);
     const [targets, setTargets] = useState([]);
     const [showNew, setShowNew] = useState(false);
     const [loading, setLoading] = useState(true);
-    
+
     // Form state
     const [form, setForm] = useState({ name: '', target: '', mcVersion: '', packageName: 'com.example.plugin' });
     const [busy, setBusy] = useState(false);
@@ -20,6 +20,15 @@ window.MCFL = window.MCFL || {};
     };
 
     useEffect(reload, []);
+
+    // Honour the Dashboard "Quick start → New project" shortcut: when the
+    // parent signals an intent, auto-open the form and clear the flag.
+    useEffect(() => {
+      if (newProjectIntent) {
+        setShowNew(true);
+        onConsumeNewProjectIntent && onConsumeNewProjectIntent();
+      }
+    }, [newProjectIntent, onConsumeNewProjectIntent]);
 
     const handleCreate = async (e) => {
       e.preventDefault();
@@ -65,7 +74,7 @@ window.MCFL = window.MCFL || {};
           title={t.proj.title}
           subtitle={t.proj.subtitle}
           actions={
-            <button onClick={() => setShowNew(true)} className={cx.btnPrimary}>
+            <button data-testid="new-project-btn" onClick={() => setShowNew(true)} className={cx.btnPrimary}>
               <Icon name="plus" className="w-4 h-4" />
               {t.proj.newProject}
             </button>
@@ -76,21 +85,21 @@ window.MCFL = window.MCFL || {};
           <form onSubmit={handleCreate} className={cx.j(cx.card, "p-6 space-y-4 max-w-2xl mx-auto shadow-xl")}>
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-lg font-bold text-tx1">{t.proj.newProject}</h2>
-              <button type="button" onClick={() => setShowNew(false)} className={cx.btnIcon}><Icon name="close" /></button>
+              <button data-testid="close-project-form" type="button" onClick={() => setShowNew(false)} className={cx.btnIcon}><Icon name="close" /></button>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className={cx.label}>{t.proj.name}</label>
-                <input required className={cx.input} value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="MyAwesomePlugin" />
+                <input data-testid="project-name" required className={cx.input} value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="MyAwesomePlugin" />
               </div>
               <div className="space-y-1.5">
                 <label className={cx.label}>{t.proj.packageName}</label>
-                <input required className={cx.input} value={form.packageName} onChange={e => setForm(f => ({...f, packageName: e.target.value}))} />
+                <input data-testid="project-packageName" required className={cx.input} value={form.packageName} onChange={e => setForm(f => ({...f, packageName: e.target.value}))} />
               </div>
               <div className="space-y-1.5">
                 <label className={cx.label}>{t.proj.target}</label>
-                <select required className={cx.select} value={form.target} onChange={e => handleTargetChange(e.target.value)}>
+                <select data-testid="project-targetId" required className={cx.select} value={form.target} onChange={e => handleTargetChange(e.target.value)}>
                   <option value="" className="bg-surface text-tx1">— Select Target —</option>
                   {targets.map(tg => {
                     const name = tg.displayName || tg.name || tg.id;
@@ -115,7 +124,7 @@ window.MCFL = window.MCFL || {};
 
             <div className="flex justify-end gap-3 pt-4 border-t border-border">
               <button type="button" onClick={() => setShowNew(false)} className={cx.btnSecondary}>{t.proj.cancel}</button>
-              <button type="submit" disabled={busy} className={cx.btnPrimary}>
+              <button data-testid="project-create-btn" type="submit" disabled={busy} className={cx.btnPrimary}>
                 {busy ? t.proj.creating : t.proj.create}
               </button>
             </div>

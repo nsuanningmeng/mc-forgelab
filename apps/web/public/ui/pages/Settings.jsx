@@ -3,9 +3,9 @@ window.MCFL = window.MCFL || {};
   const { useState, useEffect, useCallback } = React;
   const { cx, api, PageHeader, EmptyState, StatusBadge, Icon, ProviderForm, ModelProfileForm } = window.MCFL;
 
-  function Section({ title, description, badge, children }) {
+  function Section({ title, description, badge, children, "data-testid": testId }) {
     return (
-      <section className={cx.j(cx.card, "px-4 py-3.5")}>
+      <section className={cx.j(cx.card, "px-4 py-3.5")} data-testid={testId}>
         <header className="flex items-center justify-between mb-1">
           <h2 className="text-sm font-semibold text-tx1">{title}</h2>
           {badge}
@@ -60,7 +60,7 @@ window.MCFL = window.MCFL || {};
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <button onClick={() => onDelete(row)} className={cx.btnIcon} title={tf.delete}>
+          <button data-testid="delete-profile-btn" onClick={() => onDelete(row)} className={cx.btnIcon} title={tf.delete}>
             <Icon name="trash" className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -150,18 +150,18 @@ window.MCFL = window.MCFL || {};
         <PageHeader title={t.settings.title} subtitle={t.settings.subtitle} />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Section title={t.settings.groups.provider} description={desc.provider}>
+          <Section title={t.settings.groups.provider} description={desc.provider} data-testid="ai-providers-section">
             {error && <div className="mb-2 text-xs text-danger bg-danger/5 border border-danger/30 rounded-md px-3 py-2">{error}</div>}
             {testResult && <div className={cx.j("mb-2 text-xs px-3 py-2 rounded-md border", testResult.ok ? "text-mc bg-mc/5 border-mc/30" : "text-danger bg-danger/5 border-danger/30")}>{testResult.message}</div>}
             
             {providers === null ? (
               <span className="text-tx3">{t.common.loading}…</span>
             ) : providers.length === 0 && !showProviderForm ? (
-              <EmptyState icon="cpu" title={tfp.empty} action={<button onClick={() => setShowProviderForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tfp.add}</button>} />
+              <EmptyState icon="cpu" title={tfp.empty} action={<button data-testid="add-provider-btn" onClick={() => setShowProviderForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tfp.add}</button>} />
             ) : (
               <div className="space-y-2">
                 {!showProviderForm && (
-                  <div className="flex justify-end"><button onClick={() => setShowProviderForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tfp.add}</button></div>
+                  <div className="flex justify-end"><button data-testid="add-provider-btn" onClick={() => setShowProviderForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tfp.add}</button></div>
                 )}
                 {showProviderForm && <ProviderForm t={t} mode="create" onSave={handleSaveProvider} onCancel={() => setShowProviderForm(false)} />}
                 {providers.length > 0 && (
@@ -173,15 +173,15 @@ window.MCFL = window.MCFL || {};
             )}
           </Section>
 
-          <Section title={t.settings.groups.models} description={desc.models} badge={<StatusBadge variant="success" label="active" dot={false} />}>
+          <Section title={t.settings.groups.models} description={desc.models} badge={<StatusBadge variant="success" label="active" dot={false} />} data-testid="model-profiles-section">
             {profiles === null ? (
               <span className="text-tx3">{t.common.loading}…</span>
             ) : profiles.length === 0 && !showProfileForm ? (
-              <EmptyState icon="box" title={tfl.empty} action={<button onClick={() => setShowProfileForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tfl.add}</button>} />
+              <EmptyState icon="box" title={tfl.empty} action={<button data-testid="add-profile-btn" onClick={() => setShowProfileForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tfl.add}</button>} />
             ) : (
               <div className="space-y-2">
                 {!showProfileForm && (
-                  <div className="flex justify-end"><button onClick={() => setShowProfileForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tfl.add}</button></div>
+                  <div className="flex justify-end"><button data-testid="add-profile-btn" onClick={() => setShowProfileForm(true)} className={cx.btnPrimary}><Icon name="plus" className="w-3.5 h-3.5" />{tfl.add}</button></div>
                 )}
                 {showProfileForm && (
                   <ModelProfileForm 
@@ -230,8 +230,8 @@ window.MCFL = window.MCFL || {};
             <div className="flex items-center justify-between">
               <span>{t.settings.theme}</span>
               <div className="flex items-center gap-1">
-                <button type="button" onClick={() => onSetTheme('dark')} className={theme === 'dark' ? cx.chipActive : cx.chipNeutral}>{t.settings.dark}</button>
-                <button type="button" onClick={() => onSetTheme('light')} className={theme === 'light' ? cx.chipActive : cx.chipNeutral}>{t.settings.light}</button>
+                <button type="button" data-testid="theme-dark" onClick={() => onSetTheme('dark')} className={theme === 'dark' ? cx.chipActive : cx.chipNeutral}>{t.settings.dark}</button>
+                <button type="button" data-testid="theme-light" onClick={() => onSetTheme('light')} className={theme === 'light' ? cx.chipActive : cx.chipNeutral}>{t.settings.light}</button>
               </div>
             </div>
           </Section>

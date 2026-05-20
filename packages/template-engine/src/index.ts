@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { resolveInsideBase } from "@mc-forgelab/file-operation";
 import type { ProjectSpec } from "@mc-forgelab/project-model";
+import { createDefaultRegistry, type Target } from "@mc-forgelab/target-registry";
 
 export interface TemplateMeta {
   readonly id: string;
@@ -22,15 +23,40 @@ export interface RenderOptions {
   readonly overwrite?: boolean;
 }
 
-const TEMPLATES: TemplateMeta[] = [
-  { id: "plugin-paper-java", version: "1.0.0", displayName: "Paper 插件 (Java)", compatibleTargetIds: ["paper", "spigot", "purpur", "folia"], descriptionZh: "Paper 插件 Gradle Kotlin DSL 模板", descriptionEn: "Paper plugin with Gradle Kotlin DSL" },
-  { id: "mod-fabric-java", version: "1.0.0", displayName: "Fabric 模组 (Java)", compatibleTargetIds: ["fabric"], descriptionZh: "Fabric 模组 Loom 模板", descriptionEn: "Fabric mod with Loom" },
-  { id: "plugin-velocity-java", version: "1.0.0", displayName: "Velocity 插件 (Java)", compatibleTargetIds: ["velocity"], descriptionZh: "Velocity 代理端插件模板", descriptionEn: "Velocity proxy plugin" },
+interface TemplateDefinition extends Omit<TemplateMeta, "compatibleTargetIds"> {
+  readonly isCompatibleTarget: (target: Target) => boolean;
+}
+
+const TEMPLATES: TemplateDefinition[] = [
+  { id: "plugin-paper-java", version: "1.0.0", displayName: "Paper \u63d2\u4ef6 (Java)", isCompatibleTarget: (t) => t.type === "plugin" && (t.capabilities.supportsPaperApi || t.capabilities.supportsSpigotApi || t.capabilities.supportsFoliaScheduler), descriptionZh: "Paper \u63d2\u4ef6 Gradle Kotlin DSL \u6a21\u677f", descriptionEn: "Paper plugin with Gradle Kotlin DSL" },
+  { id: "mod-fabric-java", version: "1.0.0", displayName: "Fabric \u6a21\u7ec4 (Java)", isCompatibleTarget: (t) => t.type === "mod" && t.capabilities.supportsFabric && !t.capabilities.supportsQuilt, descriptionZh: "Fabric \u6a21\u7ec4 Loom \u6a21\u677f", descriptionEn: "Fabric mod with Loom" },
+  { id: "plugin-velocity-java", version: "1.0.0", displayName: "Velocity \u63d2\u4ef6 (Java)", isCompatibleTarget: (t) => t.type === "proxy" && t.capabilities.supportsVelocity, descriptionZh: "Velocity \u4ee3\u7406\u7aef\u63d2\u4ef6\u6a21\u677f", descriptionEn: "Velocity proxy plugin" },
 ];
 
+let cachedTemplates: TemplateMeta[] | null = null;
+
+function toTemplateMeta(template: TemplateDefinition, targets: ReadonlyArray<Target>): TemplateMeta {
+  const { isCompatibleTarget, ...meta } = template;
+  return {
+    ...meta,
+    compatibleTargetIds: targets
+      .filter(isCompatibleTarget)
+      .map((target) => target.id),
+  };
+}
+
+function getTemplateMetas(): TemplateMeta[] {
+  if (!cachedTemplates) {
+    const targets = createDefaultRegistry().list({ includeLegacy: true, includeDeprecated: true });
+    cachedTemplates = TEMPLATES.map((template) => toTemplateMeta(template, targets));
+  }
+  return cachedTemplates;
+}
+
 export function listTemplates(targetId?: string): TemplateMeta[] {
-  if (!targetId) return TEMPLATES;
-  return TEMPLATES.filter((t) => t.compatibleTargetIds.includes(targetId));
+  const templates = getTemplateMetas();
+  if (!targetId) return templates.slice();
+  return templates.filter((t) => t.compatibleTargetIds.includes(targetId));
 }
 
 export async function renderTemplate(templateId: string, spec: ProjectSpec, outputDir: string, options: RenderOptions = {}): Promise<RenderedFile[]> {
@@ -73,7 +99,7 @@ function renderPaperPlugin(spec: ProjectSpec): RenderedFile[] {
     { relativePath: "src/main/resources/plugin.yml", content: pluginYml(pluginName, mainClass, version, desc, author, f) },
     { relativePath: "src/main/resources/config.yml", content: f.enableConfig ? defaultConfig() : "" },
     { relativePath: `src/main/java/${pkg.replace(/\./g, "/")}/${mainSimple}.java`, content: mainClassJava(pkg, mainSimple, f) },
-    { relativePath: "README.md", content: `# ${pluginName}\n\n${desc}\n\n## 安装\n将 jar 放入 plugins/ 目录并重启服务器。\n` }
+    { relativePath: "README.md", content: `# ${pluginName}\n\n${desc}\n\n## 安装\n�?jar 放入 plugins/ 目录并重启服务器。\n` }
   ].filter((f) => f.content !== "");
 }
 
@@ -177,4 +203,3 @@ function renderVelocityPlugin(spec: ProjectSpec): RenderedFile[] {
     { relativePath: `src/main/java/${pkg.replace(/\./g, "/")}/${cls}.java`, content: `package ${pkg};\nimport com.google.inject.Inject;\nimport com.velocitypowered.api.plugin.Plugin;\nimport com.velocitypowered.api.proxy.ProxyServer;\n@Plugin(id = "${id}", name = "${spec.name}", version = "1.0.0")\npublic class ${cls} {\n  @Inject public ${cls}(ProxyServer server) {}\n}\n` },
   ];
 }
-

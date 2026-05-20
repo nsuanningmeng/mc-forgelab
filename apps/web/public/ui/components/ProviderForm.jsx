@@ -40,7 +40,8 @@ window.MCFL = window.MCFL || {};
           <label htmlFor={inputId} className={cx.label}>{label}</label>
           <input
             id={inputId}
-            name={inputId}
+            name={key}
+            data-testid={`provider-${key}`}
             type={opts.type || "text"}
             value={form[key]}
             onChange={(e) => setForm((f) => ({ ...f, [key]: opts.type === "number" ? Number(e.target.value) : e.target.value }))}
@@ -77,7 +78,7 @@ window.MCFL = window.MCFL || {};
 
         <div className="md:col-span-2 flex justify-end gap-2">
           <button type="button" onClick={onCancel} className={cx.btnGhost}>{tf.cancel}</button>
-          <button type="submit" disabled={submitting} className={cx.btnPrimary}>
+          <button data-testid="provider-save-btn" type="submit" disabled={submitting} className={cx.btnPrimary}>
             {submitting ? tf.saving : tf.save}
           </button>
         </div>

@@ -49,6 +49,7 @@ window.MCFL = window.MCFL || {};
             <label className={cx.label}>{tf.fields.name}</label>
             <input 
               required 
+              data-testid="profile-name"
               className={cx.input} 
               value={form.name} 
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))} 
@@ -60,6 +61,7 @@ window.MCFL = window.MCFL || {};
             <label className={cx.label}>{tf.fields.role}</label>
             <select 
               required 
+              data-testid="profile-role"
               className={cx.select} 
               value={form.role} 
               onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
@@ -77,6 +79,7 @@ window.MCFL = window.MCFL || {};
             ) : (
               <select 
                 required 
+                data-testid="profile-providerId"
                 className={cx.select} 
                 value={form.providerId} 
                 onChange={e => setForm(f => ({ ...f, providerId: e.target.value }))}
@@ -93,6 +96,7 @@ window.MCFL = window.MCFL || {};
             <div className="relative">
               <input 
                 required 
+                data-testid="profile-model"
                 list="model-list"
                 className={cx.input} 
                 value={form.model} 
@@ -159,7 +163,7 @@ window.MCFL = window.MCFL || {};
 
         <div className="flex justify-end gap-2 pt-2 border-t border-border">
           <button type="button" onClick={onCancel} className={cx.btnSecondary}>{t.common.cancel}</button>
-          <button type="submit" disabled={noProviders} className={cx.btnPrimary}>
+          <button data-testid="profile-save-btn" type="submit" disabled={noProviders} className={cx.btnPrimary}>
             <Icon name="check" className="w-3.5 h-3.5" />
             {t.common.save}
           </button>

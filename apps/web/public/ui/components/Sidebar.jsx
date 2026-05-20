@@ -25,6 +25,7 @@ window.MCFL = window.MCFL || {};
           {items.map((item) => (
             <button
               key={item.id}
+              data-testid={`nav-${item.id}`}
               onClick={() => onNavigate(item.id)}
               className={activePage === item.id || (activePage === 'project-detail' && item.id === 'projects') ? cx.navItemActive : cx.navItem}
             >
@@ -40,7 +41,7 @@ window.MCFL = window.MCFL || {};
         <div className="p-4 border-t border-border/50">
           <div className="bg-elevated rounded-md p-3">
             <div className="text-2xs text-tx3 uppercase tracking-wider mb-1">Runtime Version</div>
-            <div className="text-xs font-mono text-mc">v0.3.4</div>
+            <div className="text-xs font-mono text-mc">v0.3.6</div>
           </div>
         </div>
       </aside>

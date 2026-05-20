@@ -18,6 +18,7 @@ export interface BuildRecord {
 }
 
 export interface BuildOptions {
+  readonly buildId?: string;
   readonly workspaceRoot: string;
   readonly projectPath: string;
   readonly javaVersion?: 8 | 11 | 17 | 21;
@@ -33,7 +34,7 @@ export async function runBuild(
   opts: BuildOptions,
   onLog: (line: string) => void = () => {}
 ): Promise<BuildRecord> {
-  const buildId = randomUUID();
+  const buildId = opts.buildId ?? randomUUID();
   const startedAt = new Date().toISOString();
   const logsDir = opts.logsDir ?? join(opts.workspaceRoot, "logs");
   const logPath = join(logsDir, `${buildId}.log`);

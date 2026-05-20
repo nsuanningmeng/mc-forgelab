@@ -1,6 +1,6 @@
 {
   "name": "@mc-forgelab/desktop",
-  "version": "0.3.4",
+  "version": "0.3.6",
   "private": true,
   "type": "module",
   "main": "dist/main.js",
@@ -29,7 +29,8 @@
     "@mc-forgelab/file-operation": "workspace:*",
     "@mc-forgelab/compatibility": "workspace:*",
     "@mc-forgelab/target-registry": "workspace:*",
-    "better-sqlite3": "^11.5.0"
+    "better-sqlite3": "^11.5.0",
+    "electron-updater": "^6.8.3"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.6.1",
@@ -86,6 +87,13 @@
             "x64",
             "arm64"
           ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "assets/icon.icns"
@@ -101,6 +109,12 @@
       ],
       "icon": "assets/icon.png"
     },
-    "publish": null
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "nsuanningmeng",
+        "repo": "mc-forgelab"
+      }
+    ]
   }
 }

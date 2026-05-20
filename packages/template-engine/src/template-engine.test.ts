@@ -20,6 +20,11 @@ describe("template-engine", () => {
     expect(templates[0]?.id).toBe("plugin-paper-java");
   });
 
+  it("derives paper-compatible targets from the target registry", () => {
+    expect(listTemplates("purpur").some((t) => t.id === "plugin-paper-java")).toBe(true);
+    expect(listTemplates("folia").some((t) => t.id === "plugin-paper-java")).toBe(true);
+  });
+
   it("dry-run renders expected files", async () => {
     const files = await renderTemplate("plugin-paper-java", spec, "/tmp/fake", { dryRun: true });
     const paths = files.map((f) => f.relativePath);

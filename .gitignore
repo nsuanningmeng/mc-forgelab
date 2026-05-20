@@ -41,3 +41,7 @@ target/
 
 # local AI planning / Claude Code
 .claude/
+
+# Playwright e2e outputs
+apps/web/test-results/
+apps/web/playwright-report/

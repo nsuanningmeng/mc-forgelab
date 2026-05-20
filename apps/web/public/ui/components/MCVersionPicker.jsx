@@ -77,6 +77,7 @@ window.MCFL = window.MCFL || {};
     return (
       <div className="space-y-2">
         <select
+          data-testid="project-mcVersion"
           className={cx.select}
           value={value}
           onChange={(e) => onChange(e.target.value)}

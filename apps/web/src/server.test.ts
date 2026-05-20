@@ -18,10 +18,15 @@ afterAll(async () => {
 });
 
 describe("GET /api/health", () => {
-  it("returns ok", async () => {
+  it("returns version and storage metadata", async () => {
     const res = await app.inject({ method: "GET", url: "/api/health" });
     expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.body).ok).toBe(true);
+    expect(JSON.parse(res.body)).toEqual({
+      ok: true,
+      version: "0.3.6",
+      storage: "memory",
+      persistent: false,
+    });
   });
 });
 

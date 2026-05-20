@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import staticFiles from "@fastify/static";
+import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openStorage, BASE_MIGRATIONS, STAGE6_MIGRATIONS } from "@mc-forgelab/storage";
@@ -22,6 +23,17 @@ import { createBuildRegistry } from "./lib/build-registry.js";
 import { createAuditLogger, STAGE_WEB_MIGRATIONS } from "./lib/audit.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const APP_VERSION = readPackageVersion();
+
+function readPackageVersion(): string {
+  try {
+    const parsed = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf8")) as { version?: unknown };
+    if (typeof parsed.version === "string" && parsed.version.length > 0) return parsed.version;
+  } catch {
+    // Fall through to npm metadata for uncommon launchers that omit package.json.
+  }
+  return process.env.npm_package_version ?? "0.0.0";
+}
 
 export interface BuildAppOptions {
   /** Optional pre-resolved config. If omitted, buildApp resolves config
@@ -122,7 +134,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   await registerAuditRoutes(app, ctx);
   app.get("/api/health", async () => ({
     ok: true,
-    version: "0.3.4",
+    version: APP_VERSION,
     storage: storage.backend.name,
     persistent: storage.backend.name === "sqlite",
   }));

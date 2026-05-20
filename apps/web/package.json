@@ -1,6 +1,6 @@
 {
   "name": "@mc-forgelab/web",
-  "version": "0.3.4",
+  "version": "0.3.6",
   "private": true,
   "type": "module",
   "exports": {
@@ -25,26 +25,30 @@
     "build": "tsc -b",
     "typecheck": "tsc -b",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@mc-forgelab/app-error": "workspace:*",
-    "@mc-forgelab/storage": "workspace:*",
-    "@mc-forgelab/config": "workspace:*",
+    "@fastify/cors": "^9.0.1",
+    "@fastify/static": "^7.0.4",
     "@mc-forgelab/ai-provider-manager": "workspace:*",
     "@mc-forgelab/ai-workflow-engine": "workspace:*",
+    "@mc-forgelab/app-error": "workspace:*",
     "@mc-forgelab/artifact-manager": "workspace:*",
     "@mc-forgelab/build-orchestrator": "workspace:*",
-    "@mc-forgelab/toolchain-manager": "workspace:*",
-    "@mc-forgelab/template-engine": "workspace:*",
-    "@mc-forgelab/project-model": "workspace:*",
+    "@mc-forgelab/config": "workspace:*",
     "@mc-forgelab/knowledge-base": "workspace:*",
+    "@mc-forgelab/project-model": "workspace:*",
+    "@mc-forgelab/storage": "workspace:*",
     "@mc-forgelab/target-registry": "workspace:*",
-    "fastify": "^4.28.1",
-    "@fastify/cors": "^9.0.1",
-    "@fastify/static": "^7.0.4"
+    "@mc-forgelab/template-engine": "workspace:*",
+    "@mc-forgelab/toolchain-manager": "workspace:*",
+    "fastify": "^4.28.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/node": "^22.10.0",
     "rimraf": "^6.0.1",
     "tsx": "^4.19.2",

@@ -10,6 +10,12 @@ window.MCFL = window.MCFL || {};
     const [selectedProject, setSelectedProject] = useState(null);
     const [activeTheme, setActiveTheme] = useState(theme.getTheme());
     const [health, setHealth] = useState(null);
+    const [newProjectIntent, setNewProjectIntent] = useState(false);
+
+    const startNewProject = () => {
+      setNewProjectIntent(true);
+      setPage('projects');
+    };
 
     useEffect(() => {
       theme.setTheme(activeTheme);
@@ -43,11 +49,11 @@ window.MCFL = window.MCFL || {};
     const renderPage = () => {
       const props = { t, lang, onSetLang: handleSetLang, onSetTheme: handleSetTheme, theme: activeTheme };
       switch (page) {
-        case 'dashboard': return <Dashboard {...props} onSelectProject={handleSelectProject} />;
-        case 'projects': return <Projects {...props} onSelectProject={handleSelectProject} />;
+        case 'dashboard': return <Dashboard {...props} onSelectProject={handleSelectProject} onStartNewProject={startNewProject} />;
+        case 'projects': return <Projects {...props} onSelectProject={handleSelectProject} newProjectIntent={newProjectIntent} onConsumeNewProjectIntent={() => setNewProjectIntent(false)} />;
         case 'workspace': return <Workspace {...props} selectedProject={selectedProject} onSelectProject={setSelectedProject} />;
-        case 'builds': return <Builds {...props} selectedProject={selectedProject} onSelectProject={setSelectedProject} />;
-        case 'artifacts': return <Artifacts {...props} selectedProject={selectedProject} onSelectProject={setSelectedProject} />;
+        case 'builds': return <Builds {...props} project={selectedProject} onSelect={setSelectedProject} />;
+        case 'artifacts': return <Artifacts {...props} project={selectedProject} onSelect={setSelectedProject} />;
         case 'knowledge': return <Knowledge {...props} />;
         case 'toolchains': return <Toolchains {...props} />;
         case 'settings': return <Settings {...props} onSetTheme={handleSetTheme} />;

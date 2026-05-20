@@ -128,6 +128,7 @@ window.MCFL = window.MCFL || {};
           actions={
             project ? (
               <button
+                data-testid="start-build-btn"
                 onClick={startBuild}
                 disabled={starting || isRunning}
                 className={cx.btnPrimary}
@@ -212,9 +213,9 @@ window.MCFL = window.MCFL || {};
             {activeBuild ? (
               <>
                 <div className={cx.j(cx.card, "px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2")}>
-                  <StatusBadge variant={getStatusVariant(activeBuild.status)} label={getStatusLabel(activeBuild.status)} />
+                  <StatusBadge data-testid="build-status" variant={getStatusVariant(activeBuild.status)} label={getStatusLabel(activeBuild.status)} />
                   {isRunning && (
-                    <button onClick={cancelBuild} className={cx.btnSecondary}>
+                    <button data-testid="cancel-build-btn" onClick={cancelBuild} className={cx.btnSecondary}>
                       <Icon name="close" className="w-3.5 h-3.5" />
                       {t.build.cancelBuild}
                     </button>

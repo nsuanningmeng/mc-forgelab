@@ -1,6 +1,6 @@
 {
   "name": "mc-forgelab",
-  "version": "0.3.4",
+  "version": "0.3.6",
   "private": true,
   "description": "Minecraft plugin / mod / hybrid project generator, builder and download platform — desktop GUI / CLI / WebUI in Docker.",
   "type": "module",
@@ -13,6 +13,7 @@
     "typecheck": "turbo run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
+    "playwright": "pnpm --filter @mc-forgelab/web test:e2e",
     "lint": "turbo run lint",
     "cli": "pnpm --filter @mc-forgelab/cli start --",
     "clean": "turbo run clean && rimraf node_modules"
