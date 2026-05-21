@@ -21,7 +21,7 @@ describe("WorkflowEngine", () => {
   it("gets workflow by id", async () => {
     const { engine } = await makeEngine();
     const wf = engine.getWorkflow("paper-plugin-standard");
-    expect(wf.name).toContain("Paper");
+    expect(wf.name).toContain("插件");
     expect(wf.mode).toBe("multi-model");
   });
 

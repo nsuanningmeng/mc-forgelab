@@ -4,6 +4,7 @@ window.MCFL = window.MCFL || {};
   const {
     cx, Icon, EmptyState,
     FileTreeView, BuildLogPanel, ArtifactTable,
+    FilePreviewPane,
     Store, api
   } = window.MCFL;
 
@@ -13,6 +14,9 @@ window.MCFL = window.MCFL || {};
     const [buildLogs, setBuildLogs] = useState([]);
     const [isBuilding, setIsBuilding] = useState(false);
     const eventSourceRef = useRef(null);
+    const [width, setWidth] = useState(400);
+    const isResizing = useRef(false);
+    const [selectedFile, setSelectedFile] = useState(null);
 
     useEffect(() => {
       const unsub = Store.subscribe(s => setState({ ...s }));
@@ -80,7 +84,30 @@ window.MCFL = window.MCFL || {};
     };
 
     const handleFileSelect = (path) => {
-      console.log("Selected file:", path);
+      setSelectedFile({ path, content: '' });
+    };
+
+    const handleMouseDown = (e) => {
+      e.preventDefault();
+      isResizing.current = true;
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+    };
+
+    const handleMouseMove = (e) => {
+      if (!isResizing.current) return;
+      const newWidth = window.innerWidth - e.clientX;
+      if (newWidth >= 300 && newWidth <= 600) {
+        setWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      isResizing.current = false;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
     };
 
     const tabs = [
@@ -90,7 +117,14 @@ window.MCFL = window.MCFL || {};
     ];
 
     return (
-      <aside className="w-[400px] border-l border-border bg-surface flex flex-col shrink-0 overflow-hidden">
+      <aside
+        style={{ width: `${width}px` }}
+        className="relative border-l border-border bg-surface flex flex-col shrink-0 overflow-hidden"
+      >
+        <div
+          className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-mc transition-colors z-30"
+          onMouseDown={handleMouseDown}
+        />
         <div className="flex border-b border-border bg-bg/50">
           {tabs.map(tab => (
             <button
@@ -122,7 +156,7 @@ window.MCFL = window.MCFL || {};
           ) : (
             <>
               {activeTab === 'files' && (
-                <div className="flex flex-col h-full">
+                <div className="flex flex-col h-full overflow-hidden">
                   <div className="p-3 border-b border-border flex items-center justify-between shrink-0">
                     <h4 className={cx.sectionTitle}>{t.ws?.fileTree || 'Files'}</h4>
                     <button
@@ -132,7 +166,8 @@ window.MCFL = window.MCFL || {};
                       <Icon name="refresh" className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <div className="flex-1 overflow-auto">
+
+                  <div className={cx.j("overflow-auto transition-all", selectedFile ? "h-1/3 border-b border-border" : "flex-1")}>
                     {fileTree && fileTree.length > 0 ? (
                       <FileTreeView files={fileTree} onSelect={handleFileSelect} t={t} />
                     ) : (
@@ -141,6 +176,20 @@ window.MCFL = window.MCFL || {};
                       </div>
                     )}
                   </div>
+
+                  {selectedFile && (
+                    <div className="flex-1 overflow-hidden flex flex-col bg-bg/20">
+                      <div className="flex items-center justify-between px-3 py-1 bg-surface border-b border-border shrink-0">
+                        <span className="text-[10px] text-tx3 font-mono truncate">{selectedFile.path}</span>
+                        <button onClick={() => setSelectedFile(null)} className="text-tx3 hover:text-tx1 p-1">
+                          <Icon name="close" className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div className="flex-1 overflow-auto">
+                        <FilePreviewPane file={selectedFile} t={t} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

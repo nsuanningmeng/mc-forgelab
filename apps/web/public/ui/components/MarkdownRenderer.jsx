@@ -1,9 +1,12 @@
 window.MCFL = window.MCFL || {};
 (function () {
-  const { useMemo } = React;
+  const { useMemo, useRef } = React;
 
+  const inlineCache = new Map();
   function parseInline(text) {
     if (!text) return "";
+    if (inlineCache.has(text)) return inlineCache.get(text);
+
     let parts = [text];
 
     parts = parts.flatMap(p => typeof p !== 'string' ? p : p.split(/(`[^`]+`)/g).map((s, i) => {
@@ -20,10 +23,13 @@ window.MCFL = window.MCFL || {};
       return s;
     }));
 
+    inlineCache.set(text, parts);
     return parts;
   }
 
   function MarkdownRenderer({ content, isStreaming }) {
+    const cache = useRef({ paragraphs: [] });
+
     const rendered = useMemo(() => {
       if (!content) return null;
 
