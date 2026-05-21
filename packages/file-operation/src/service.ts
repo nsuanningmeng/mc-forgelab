@@ -54,6 +54,82 @@ function assertSafePath(root: string, path: string): string {
   return abs;
 }
 
+interface PatchBackup {
+  readonly backups: Map<string, string>;
+  readonly missingPaths: Set<string>;
+  readonly warnings: string[];
+}
+
+function errMsg(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function backupPatchPath(
+  root: string,
+  path: string,
+  backups: Map<string, string>,
+  missingPaths: Set<string>,
+  warnings: string[]
+): void {
+  let abs: string;
+  try {
+    abs = assertSafePath(root, path);
+  } catch (error) {
+    warnings.push(`Unable to resolve backup path ${path}: ${errMsg(error)}`);
+    return;
+  }
+
+  if (backups.has(abs) || missingPaths.has(abs)) return;
+  if (!existsSync(abs)) {
+    missingPaths.add(abs);
+    return;
+  }
+
+  try {
+    backups.set(abs, readFileSync(abs, "utf8"));
+  } catch (error) {
+    warnings.push(`Unable to backup ${path}: ${errMsg(error)}`);
+  }
+}
+
+function createPatchBackup(root: string, patch: FilePatch): PatchBackup {
+  const backups = new Map<string, string>();
+  const missingPaths = new Set<string>();
+  const warnings: string[] = [];
+
+  for (const op of patch.operations) {
+    backupPatchPath(root, op.path, backups, missingPaths, warnings);
+    if (op.op === "move" && op.newPath) {
+      backupPatchPath(root, op.newPath, backups, missingPaths, warnings);
+    }
+  }
+
+  return { backups, missingPaths, warnings };
+}
+
+function restorePatchBackup(backup: PatchBackup): string[] {
+  const errors: string[] = [];
+
+  for (const abs of backup.missingPaths) {
+    try {
+      if (existsSync(abs)) rmSync(abs, { recursive: true, force: true });
+    } catch (error) {
+      errors.push(`rollback remove failed: ${errMsg(error)}`);
+    }
+  }
+
+  for (const [abs, content] of backup.backups) {
+    try {
+      mkdirSync(dirname(abs), { recursive: true });
+      writeFileSync(abs, content, "utf8");
+    } catch (error) {
+      errors.push(`rollback restore failed: ${errMsg(error)}`);
+    }
+  }
+
+  return errors;
+}
+
 export interface FileOperationService {
   readFile(workspaceRoot: string, path: string): string;
   listFiles(workspaceRoot: string, dir?: string): string[];
@@ -124,10 +200,17 @@ export function createFileOperationService(): FileOperationService {
         throw new AppError(ErrorCode.FILE_OP_PATCH_INVALID, { details: { errors: validation.errors } });
       }
       let applied = 0;
+      const backup = createPatchBackup(root, patch);
       const errors: string[] = [];
+
+      for (const warning of backup.warnings) {
+        // eslint-disable-next-line no-console
+        console.warn(`[mc-forgelab] WARNING: ${warning}`);
+      }
+
       for (const op of patch.operations) {
-        throwIfAborted(options.signal);
         try {
+          throwIfAborted(options.signal);
           if (op.op === "create") {
             this.createFile(root, op.path, op.content ?? "");
           } else if (op.op === "update") {
@@ -139,9 +222,16 @@ export function createFileOperationService(): FileOperationService {
           }
           applied++;
         } catch (e) {
-          errors.push(`${op.op} ${op.path}: ${(e as Error).message}`);
+          errors.push(`${op.op} ${op.path}: ${errMsg(e)}`);
+          break;
         }
       }
+
+      if (errors.length > 0) {
+        errors.push(...restorePatchBackup(backup));
+        return { applied: 0, errors };
+      }
+
       return { applied, errors };
     }
   };

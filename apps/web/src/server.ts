@@ -26,6 +26,7 @@ import { createAuditLogger, STAGE_WEB_MIGRATIONS } from "./lib/audit.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_VERSION = readPackageVersion();
+const MAX_RAW_PATCH_BYTES = 1024 * 1024;
 
 function errorMessage(error: unknown): string {
   if (error instanceof AppError) return error.messageEn;
@@ -71,11 +72,26 @@ function createWorkflowBuildRunner(cfg: AppConfig): BuildRunner {
   };
 }
 
+function patchApplyError(message: string): { applied: number; errors: string[] } {
+  return { applied: 0, errors: [message] };
+}
+
 function createWorkflowPatchApplier(): PatchApplier {
   const files = createFileOperationService();
   return {
     async apply(input, options) {
-      const parsed = parseFilePatch(JSON.parse(input.patch));
+      if (options?.signal?.aborted) {
+        return patchApplyError("Patch apply aborted.");
+      }
+      const patchBytes = Buffer.byteLength(input.patch, "utf8");
+      if (patchBytes > MAX_RAW_PATCH_BYTES) {
+        return patchApplyError(`Patch payload too large: ${patchBytes} bytes (max ${MAX_RAW_PATCH_BYTES}).`);
+      }
+      const raw = JSON.parse(input.patch);
+      if (options?.signal?.aborted) {
+        return patchApplyError("Patch apply aborted.");
+      }
+      const parsed = parseFilePatch(raw);
       return files.applyPatch(input.projectPath, parsed, options);
     }
   };
