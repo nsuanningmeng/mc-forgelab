@@ -4,10 +4,7 @@ window.MCFL = window.MCFL || {};
 
   function Sidebar({ t, activePage, onNavigate, isNarrow }) {
     const items = [
-      { id: "dashboard", icon: "dashboard", label: t.nav.dashboard },
       { id: "workspace", icon: "spark", label: t.nav.workspace },
-      { id: "projects", icon: "folder", label: t.nav.projects },
-      { id: "builds", icon: "terminal", label: t.nav.builds },
       { id: "artifacts", icon: "box", label: t.nav.artifacts },
       { id: "settings", icon: "cog", label: t.nav.settings },
     ];
