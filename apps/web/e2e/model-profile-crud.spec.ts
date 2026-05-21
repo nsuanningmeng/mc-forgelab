@@ -3,10 +3,13 @@ import { test, expect } from '@playwright/test';
 test.describe('AI Settings CRUD', () => {
   test('should manage Providers and Profiles', async ({ page }) => {
     await page.goto('/');
+    // Wait for Babel Standalone to finish transpiling
+    await page.waitForSelector('[data-testid="nav-settings"]', { timeout: 15000 });
     await page.getByTestId('nav-settings').click();
 
     // 1. Create Provider
     const providerSection = page.getByTestId('ai-providers-section');
+    await expect(providerSection).toBeVisible({ timeout: 10000 });
     await providerSection.getByTestId('add-provider-btn').click();
 
     await page.getByTestId('provider-displayName').fill('E2E Provider');

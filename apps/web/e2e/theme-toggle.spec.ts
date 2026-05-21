@@ -12,7 +12,9 @@ test.describe('Theme Toggle Persistence', () => {
     await expect(html).toHaveAttribute('data-theme', 'dark');
 
     // Theme chips live on the Settings page.
+    await page.waitForSelector('[data-testid="nav-settings"]', { timeout: 15000 });
     await page.getByTestId('nav-settings').click();
+    await page.waitForSelector('[data-testid="theme-light"]', { timeout: 10000 });
     await page.getByTestId('theme-light').click();
     await expect(html).toHaveAttribute('data-theme', 'light');
 
