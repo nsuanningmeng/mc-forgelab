@@ -155,6 +155,7 @@ window.MCFL = window.MCFL || {};
                     </div>
                     <button
                       className={cx.btnPrimary}
+                      data-testid="start-build-btn"
                       disabled={isBuilding}
                       onClick={handleStartBuild}
                     >

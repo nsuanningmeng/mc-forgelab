@@ -23,6 +23,7 @@ window.MCFL = window.MCFL || {};
             {items.map((item) => (
               <button
                 key={item.id}
+                data-testid={`nav-${item.id}`}
                 title={item.label}
                 onClick={() => onNavigate(item.id)}
                 className={cx.j(
@@ -66,6 +67,7 @@ window.MCFL = window.MCFL || {};
           {items.map((item) => (
             <button
               key={item.id}
+              data-testid={`nav-${item.id}`}
               onClick={() => onNavigate(item.id)}
               className={activePage === item.id || (activePage === 'project-detail' && item.id === 'projects') ? cx.navItemActive : cx.navItem}
             >
