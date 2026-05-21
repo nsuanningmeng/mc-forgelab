@@ -24,6 +24,73 @@ export interface PatchValidationResult {
   readonly errors: string[];
 }
 
+const PATCH_OPS = new Set<PatchOp>(["create", "update", "delete", "move"]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function throwInvalidPatch(errors: string[]): never {
+  throw new AppError(ErrorCode.FILE_OP_PATCH_INVALID, { details: { errors } });
+}
+
+export function parseFilePatch(raw: unknown): FilePatch {
+  const errors: string[] = [];
+
+  if (!isRecord(raw)) {
+    throwInvalidPatch(["patch must be an object"]);
+  }
+
+  if (raw.type !== "file_patch") {
+    errors.push("patch.type must be 'file_patch'");
+  }
+
+  const summary = raw.summary;
+  if (typeof summary !== "string") {
+    errors.push("patch.summary must be a string");
+  }
+
+  let notes: string[] | undefined;
+  if (raw.notes !== undefined) {
+    if (!Array.isArray(raw.notes) || raw.notes.some((note: unknown) => typeof note !== "string")) {
+      errors.push("patch.notes must be an array of strings");
+    } else {
+      notes = raw.notes as string[];
+    }
+  }
+
+  const operations: FilePatchOperation[] = [];
+  if (!Array.isArray(raw.operations)) {
+    errors.push("patch.operations must be an array");
+  } else {
+    raw.operations.forEach((operation: unknown, index: number) => {
+      if (!isRecord(operation)) {
+        errors.push(`patch.operations[${index}] must be an object`);
+        return;
+      }
+
+      const opValue = operation.op;
+      const pathValue = operation.path;
+      const op = typeof opValue === "string" && PATCH_OPS.has(opValue as PatchOp) ? opValue as PatchOp : undefined;
+      const path = typeof pathValue === "string" ? pathValue : undefined;
+      const content = operation.content;
+      const newPath = operation.newPath;
+
+      if (!op) errors.push(`patch.operations[${index}].op must be one of: create, update, delete, move`);
+      if (!path) errors.push(`patch.operations[${index}].path must be a string`);
+      if (content !== undefined && typeof content !== "string") errors.push(`patch.operations[${index}].content must be a string`);
+      if (newPath !== undefined && typeof newPath !== "string") errors.push(`patch.operations[${index}].newPath must be a string`);
+
+      if (op && path) {
+        operations.push({ op, path, ...(typeof content === "string" ? { content } : {}), ...(typeof newPath === "string" ? { newPath } : {}) });
+      }
+    });
+  }
+
+  if (errors.length > 0) throwInvalidPatch(errors);
+  return { type: "file_patch", summary: summary as string, operations, ...(notes ? { notes } : {}) };
+}
+
 /** Vérifie qu'un chemin est à l'intérieur du répertoire de base (pas de path traversal). */
 export function resolveInsideBase(base: string, input: string): string {
   if (isAbsolute(input)) {

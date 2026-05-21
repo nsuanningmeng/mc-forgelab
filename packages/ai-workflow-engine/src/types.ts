@@ -55,6 +55,7 @@ export interface RuntimeConfig {
   readonly logsDir?: string;
   readonly buildTimeoutMs?: number;
   readonly maxAutoFixTokens?: number;
+  readonly maxAutoFixInputChars?: number;
 }
 
 export interface BuildRunnerInput {
@@ -77,8 +78,12 @@ export interface BuildRunner {
   run(input: BuildRunnerInput): Promise<WorkflowBuildResult>;
 }
 
+export interface PatchApplyOptions {
+  readonly signal?: AbortSignal;
+}
+
 export interface PatchApplier {
-  apply(input: { readonly projectPath: string; readonly patch: string }): Promise<{ applied: number; errors: string[] }>;
+  apply(input: { readonly projectPath: string; readonly patch: string }, options?: PatchApplyOptions): Promise<{ applied: number; errors: string[] }>;
 }
 
 export interface ToolExecutionContext {

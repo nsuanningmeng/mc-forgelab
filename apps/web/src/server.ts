@@ -11,7 +11,7 @@ import { applyMigration as applyKnowledgeMigration, STAGE7_MIGRATIONS } from "@m
 import { createArtifactManager } from "@mc-forgelab/artifact-manager";
 import { loadConfig, type AppConfig } from "@mc-forgelab/config";
 import { runBuild } from "@mc-forgelab/build-orchestrator";
-import { createFileOperationService, type FilePatch } from "@mc-forgelab/file-operation";
+import { createFileOperationService, parseFilePatch } from "@mc-forgelab/file-operation";
 import { AppError } from "@mc-forgelab/app-error";
 import { registerProjectRoutes } from "./routes/projects.js";
 import { registerArtifactRoutes } from "./routes/artifacts.js";
@@ -74,9 +74,9 @@ function createWorkflowBuildRunner(cfg: AppConfig): BuildRunner {
 function createWorkflowPatchApplier(): PatchApplier {
   const files = createFileOperationService();
   return {
-    async apply(input) {
-      const parsed = JSON.parse(input.patch) as FilePatch;
-      return files.applyPatch(input.projectPath, parsed);
+    async apply(input, options) {
+      const parsed = parseFilePatch(JSON.parse(input.patch));
+      return files.applyPatch(input.projectPath, parsed, options);
     }
   };
 }

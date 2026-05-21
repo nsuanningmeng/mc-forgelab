@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { AppError } from "@mc-forgelab/app-error";
 import type { ProviderManager } from "@mc-forgelab/ai-provider-manager";
 import type { Storage } from "@mc-forgelab/storage";
@@ -25,9 +25,12 @@ type StepRuntimeStatus = "success" | "failed" | "skipped";
 type JavaVersion = 8 | 11 | 17 | 21;
 
 const BUILD_LOG_TAIL_LINES = 300;
+const BUFFERED_LOG_LINES = 10;
+const BUFFERED_LOG_INTERVAL_MS = 500;
 const DEFAULT_MAX_AUTO_FIX_TOKENS = 100_000;
+const DEFAULT_MAX_AUTO_FIX_INPUT_CHARS = 50_000;
 const MAX_AUTO_FIX_ROUNDS = 10;
-const SUPPORTED_AUTO_FIX_CONDITION = "buildResult.status == failed";
+const SUPPORTED_AUTO_FIX_CONDITION_PATTERN = /^buildResult\.status\s*={2,3}\s*(?:"failed"|'failed'|failed)$/;
 
 export type RuntimeEvent =
   | { type: "run_started"; runId: string; workflowId: string }
@@ -108,6 +111,26 @@ interface ProjectBuildConfig {
   readonly javaVersion?: JavaVersion;
 }
 
+interface PatchApplyFailure {
+  readonly kind: "patch_apply_failed";
+  readonly message: string;
+  readonly errors: readonly string[];
+  readonly patchPreview: string;
+}
+
+class PatchApplyFailureError extends Error implements PatchApplyFailure {
+  override readonly name = "PatchApplyFailureError";
+  readonly kind = "patch_apply_failed";
+
+  constructor(message: string, readonly errors: readonly string[], readonly patchPreview: string) {
+    super(message);
+  }
+}
+
+function isPatchApplyFailure(error: unknown): error is PatchApplyFailure {
+  return error instanceof PatchApplyFailureError;
+}
+
 const TERMINAL_RUN_STATUSES = new Set<string>(["success", "failed", "canceled"]);
 
 function isModelStep(step: WorkflowStepDef): boolean {
@@ -153,8 +176,8 @@ function firstNonEmptyInput(inputs: Record<string, string>): string {
 }
 
 function evaluateAutoFixCondition(condition: string | undefined, context: WorkflowContextSnapshot): boolean | "unsupported" {
-  const normalized = condition?.trim() ?? SUPPORTED_AUTO_FIX_CONDITION;
-  if (normalized !== SUPPORTED_AUTO_FIX_CONDITION) return "unsupported";
+  const normalized = condition?.trim() ?? "buildResult.status == failed";
+  if (!SUPPORTED_AUTO_FIX_CONDITION_PATTERN.test(normalized)) return "unsupported";
   return context.buildResult?.status === "failed";
 }
 
@@ -169,6 +192,33 @@ function makeVirtualModelStep(base: WorkflowStepDef, role: "build_error_analyzer
 
 function tokenTotal(tokensIn: number, tokensOut: number): number {
   return tokensIn + tokensOut;
+}
+
+function truncateForAutoFixInput(value: string, maxChars: number): string {
+  if (value.length <= maxChars) return value;
+  const marker = `\n\n[truncated ${value.length} chars to fit auto-fix input limit ${maxChars}]\n\n`;
+  if (maxChars <= marker.length) return value.slice(0, maxChars);
+  const remaining = maxChars - marker.length;
+  const head = Math.ceil(remaining / 2);
+  const tail = Math.floor(remaining / 2);
+  return `${value.slice(0, head)}${marker}${value.slice(value.length - tail)}`;
+}
+
+function isContainedPath(base: string, candidate: string): boolean {
+  const rel = relative(base, candidate);
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+export function resolveContainedProjectPath(workspaceRoot: string, projectId: string, dbPath: string | null | undefined): string {
+  const workspace = resolve(workspaceRoot);
+  const fallback = resolve(workspace, "projects", projectId);
+  const candidate = dbPath && dbPath.trim().length > 0
+    ? (isAbsolute(dbPath) ? resolve(dbPath) : resolve(workspace, dbPath))
+    : fallback;
+  if (!isContainedPath(workspace, candidate)) {
+    throw new Error(`Project path for ${projectId} must be inside workspace.`);
+  }
+  return candidate;
 }
 
 export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
@@ -228,6 +278,37 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
     broadcast(event);
   }
 
+  function createBufferedStepLogger(runId: string, stepRowId: string, signal: AbortSignal): { log(line: string): void; flush(): void } {
+    const buffer: string[] = [];
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const flush = (): void => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+      if (buffer.length === 0) return;
+      const line = buffer.splice(0, buffer.length).join("\n");
+      emit({ type: "step_log", runId, stepRowId, line });
+    };
+
+    const scheduleFlush = (): void => {
+      if (!timer) timer = setTimeout(flush, BUFFERED_LOG_INTERVAL_MS);
+    };
+
+    signal.addEventListener("abort", flush, { once: true });
+
+    return {
+      log(line) {
+        if (signal.aborted) return;
+        buffer.push(line);
+        if (buffer.length >= BUFFERED_LOG_LINES) flush();
+        else scheduleFlush();
+      },
+      flush
+    };
+  }
+
   function updateRunRuntimeState(runId: string, fields: Record<string, string | number | null>): void {
     const entries = Object.entries(fields);
     if (entries.length === 0) return;
@@ -281,21 +362,23 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
 
   function resolveProjectBuildConfig(projectId: string | undefined): ProjectBuildConfig {
     const workspaceRoot = deps.config?.workspaceRoot ?? process.cwd();
-    if (!projectId) return { projectPath: workspaceRoot };
+    if (!projectId) {
+      throw new Error("Project id is required to resolve project build config.");
+    }
 
+    let row: ProjectRuntimeRow | undefined;
     try {
-      const row = deps.storage.backend.get<ProjectRuntimeRow>(
+      row = deps.storage.backend.get<ProjectRuntimeRow>(
         "SELECT project_path, java_version FROM projects WHERE id = ?",
         [projectId]
       );
-      const projectPath = row?.project_path && row.project_path.length > 0
-        ? row.project_path
-        : join(workspaceRoot, "projects", projectId);
-      const javaVersion = isJavaVersion(row?.java_version) ? row.java_version : undefined;
-      return { projectPath, javaVersion };
     } catch {
-      return { projectPath: join(workspaceRoot, "projects", projectId) };
+      row = undefined;
     }
+
+    const projectPath = resolveContainedProjectPath(workspaceRoot, projectId, row?.project_path);
+    const javaVersion = isJavaVersion(row?.java_version) ? row.java_version : undefined;
+    return { projectPath, javaVersion };
   }
 
   async function executeBuild(projectId: string | undefined, toolContext: ToolExecutionContext): Promise<WorkflowBuildResult> {
@@ -359,9 +442,19 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
     }
 
     const project = resolveProjectBuildConfig(projectId);
-    const result = await deps.patchApplier.apply({ projectPath: project.projectPath, patch });
+    let result: { applied: number; errors: string[] };
+    try {
+      result = await deps.patchApplier.apply(
+        { projectPath: project.projectPath, patch },
+        { signal: toolContext.signal }
+      );
+    } catch (error) {
+      if (toolContext.signal.aborted) throw error;
+      const message = errorMessage(error);
+      throw new PatchApplyFailureError(`Patch apply failed: ${message}`, [message], summarize(patch));
+    }
     if (result.errors.length > 0) {
-      throw new Error(`Patch apply failed: ${result.errors.join("; ")}`);
+      throw new PatchApplyFailureError(`Patch apply failed: ${result.errors.join("; ")}`, result.errors, summarize(patch));
     }
     toolContext.emitLog(`Patch applied successfully: ${result.applied} operation(s).`);
     return result;
@@ -404,34 +497,48 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
     const projectId = workflowContext.projectId;
     const maxRounds = Math.min(MAX_AUTO_FIX_ROUNDS, Math.max(1, step.maxRounds ?? 5));
     const maxTokens = deps.config?.maxAutoFixTokens ?? DEFAULT_MAX_AUTO_FIX_TOKENS;
+    const maxInputChars = Math.max(1, deps.config?.maxAutoFixInputChars ?? DEFAULT_MAX_AUTO_FIX_INPUT_CHARS);
     let tokensIn = 0;
     let tokensOut = 0;
     let lastError = workflowContext.buildResult?.errorSummary ?? "Build failed.";
+    let previousPatchFailure: PatchApplyFailure | undefined;
 
     for (let round = 1; round <= maxRounds; round++) {
       throwIfAborted(toolContext.runId, toolContext.signal);
       toolContext.emitLog(`Auto-fix round ${round}/${maxRounds} started.`);
 
       try {
-        const buildResultText = JSON.stringify(workflowContext.buildResult ?? {});
-        const analyzer = await invokeAutoFixModel(step, "build_error_analyzer", {
+        const buildResultText = truncateForAutoFixInput(JSON.stringify(workflowContext.buildResult ?? {}), maxInputChars);
+        const buildLogText = truncateForAutoFixInput(workflowContext.buildResult?.log ?? workflowContext.buildLog ?? "", maxInputChars);
+        const previousPatchFailureText = previousPatchFailure
+          ? truncateForAutoFixInput(JSON.stringify(previousPatchFailure), maxInputChars)
+          : "";
+        const analyzerInputs: Record<string, string> = {
           buildResult: buildResultText,
-          buildLog: workflowContext.buildResult?.log ?? workflowContext.buildLog ?? "",
-          errorSummary: workflowContext.buildResult?.errorSummary ?? ""
-        }, runProviderId, runModel, toolContext);
+          buildLog: buildLogText,
+          errorSummary: truncateForAutoFixInput(workflowContext.buildResult?.errorSummary ?? "", maxInputChars)
+        };
+        if (previousPatchFailureText) {
+          analyzerInputs.previousPatchFailure = previousPatchFailureText;
+        }
+        const analyzer = await invokeAutoFixModel(step, "build_error_analyzer", analyzerInputs, runProviderId, runModel, toolContext);
         tokensIn += analyzer.tokensIn;
         tokensOut += analyzer.tokensOut;
         if (tokenTotal(tokensIn, tokensOut) > maxTokens) {
           throw new Error(`Auto-fix token budget exceeded (${tokenTotal(tokensIn, tokensOut)}/${maxTokens}).`);
         }
 
-        const fixer = await invokeAutoFixModel(step, "auto_fixer", {
+        const fixerInputs: Record<string, string> = {
           errorAnalysis: analyzer.text,
           buildResult: buildResultText,
-          buildLog: workflowContext.buildResult?.log ?? workflowContext.buildLog ?? "",
-          projectPlan: workflowContext.projectPlan ?? "",
-          filePatch: workflowContext.filePatch ?? ""
-        }, runProviderId, runModel, toolContext);
+          buildLog: buildLogText,
+          projectPlan: truncateForAutoFixInput(workflowContext.projectPlan ?? "", maxInputChars),
+          filePatch: truncateForAutoFixInput(workflowContext.filePatch ?? "", maxInputChars)
+        };
+        if (previousPatchFailureText) {
+          fixerInputs.previousPatchFailure = previousPatchFailureText;
+        }
+        const fixer = await invokeAutoFixModel(step, "auto_fixer", fixerInputs, runProviderId, runModel, toolContext);
         tokensIn += fixer.tokensIn;
         tokensOut += fixer.tokensOut;
         if (tokenTotal(tokensIn, tokensOut) > maxTokens) {
@@ -441,6 +548,7 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         workflowContext.filePatch = fixer.text;
         const patchResult = await executeApplyPatch(projectId, fixer.text, toolContext);
         workflowContext.patchResult = typeof patchResult === "string" ? patchResult : JSON.stringify(patchResult);
+        previousPatchFailure = undefined;
 
         const buildResult = await executeBuild(projectId, toolContext);
         workflowContext.buildResult = buildResult;
@@ -455,6 +563,9 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         if (toolContext.signal.aborted) throw error;
         const message = errorMessage(error);
         if (message.startsWith("Auto-fix token budget exceeded")) throw error;
+        if (isPatchApplyFailure(error)) {
+          previousPatchFailure = error;
+        }
         lastError = message;
         toolContext.emitLog(`Auto-fix round ${round} failed: ${message}`);
       }
@@ -530,11 +641,12 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
       emit({ type: "step_finished", runId, stepRowId: stepRecord.id, stepId: step.id, status: "failed", outputSummary: message, tokensIn, tokensOut, durationMs });
     };
 
+    const stepLogger = createBufferedStepLogger(runId, stepRecord.id, signal);
     const toolContext: ToolExecutionContext = {
       runId,
       stepRowId: stepRecord.id,
       signal,
-      emitLog: (line) => emit({ type: "step_log", runId, stepRowId: stepRecord.id, line })
+      emitLog: (line) => stepLogger.log(line)
     };
 
     if (step.role === "auto_fix_loop") {
@@ -542,6 +654,7 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         const result = await executeAutoFixLoop(step, context, runProviderId, runModel, toolContext);
         tokensIn = result.tokensIn;
         tokensOut = result.tokensOut;
+        stepLogger.flush();
         const durationMs = Date.now() - started;
         deps.storage.backend.run("UPDATE ai_workflow_steps SET duration_ms=? WHERE id=?", [durationMs, stepRecord.id]);
         deps.engine.updateStepStatus(stepRecord.id, result.status, {
@@ -556,6 +669,7 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         }
         return;
       } catch (error) {
+        stepLogger.flush();
         // Only call failStep if step wasn't already marked failed above
         const stepRow = deps.storage.backend.get<{ status: string }>("SELECT status FROM ai_workflow_steps WHERE id = ?", [stepRecord.id]);
         if (stepRow?.status !== "failed") {
@@ -599,8 +713,15 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         throw error;
       }
     } else {
-      value = await runTool(step, inputs, context, toolContext);
-      throwIfAborted(runId, signal);
+      try {
+        value = await runTool(step, inputs, context, toolContext);
+        stepLogger.flush();
+        throwIfAborted(runId, signal);
+      } catch (error) {
+        stepLogger.flush();
+        failStep(error);
+        throw error;
+      }
     }
 
     if (step.output === "filePatch" && context.filePatch === undefined && typeof value === "string") {

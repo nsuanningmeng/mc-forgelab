@@ -47,10 +47,12 @@ const ENTRIES: KnowledgeEntry[] = [
   { id: "gradle-kotlin-dsl", tags: ["gradle","kotlin","dsl","build.gradle.kts"], content: "Prefer Gradle Kotlin DSL (build.gradle.kts) for type-safe build scripts", priority: 60 }
 ];
 
+const ALL_ENTRIES: readonly KnowledgeEntry[] = [...KB_SEED, ...ENTRIES];
+
 /** Keyword-based search returns entries matching any keyword (case-insensitive) */
 export function queryKnowledge(keywords: string[]): KnowledgeEntry[] {
   const lower = keywords.map((k) => k.toLowerCase());
-  return ENTRIES.filter((e) => lower.some((k) => e.tags.some((t) => t.includes(k) || k.includes(t))));
+  return ALL_ENTRIES.filter((e) => lower.some((k) => e.tags.some((t) => t.includes(k) || k.includes(t))));
 }
 
 function normalizeMajor(version?: string): string | undefined {
@@ -99,8 +101,7 @@ function scoreEntry(entry: KnowledgeEntry, opts: KnowledgeSearchOptions): number
 }
 
 export function search(opts: KnowledgeSearchOptions): KnowledgeEntry[] {
-  const merged = [...KB_SEED, ...ENTRIES];
-  return merged
+  return ALL_ENTRIES
     .filter((entry) => matchesEntry(entry, opts))
     .sort((a, b) => scoreEntry(b, opts) - scoreEntry(a, opts) || a.id.localeCompare(b.id));
 }

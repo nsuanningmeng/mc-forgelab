@@ -3,6 +3,14 @@ import { dirname, join, relative } from "node:path";
 import { AppError, ErrorCode } from "@mc-forgelab/app-error";
 import { resolveInsideBase, validatePatch, type FilePatch } from "./patch.js";
 
+export interface FileOperationApplyPatchOptions {
+  readonly signal?: AbortSignal;
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new Error("Operation aborted");
+}
+
 export interface FileOperationService {
   readFile(workspaceRoot: string, path: string): string;
   listFiles(workspaceRoot: string, dir?: string): string[];
@@ -10,7 +18,7 @@ export interface FileOperationService {
   updateFile(workspaceRoot: string, path: string, content: string): void;
   deleteFile(workspaceRoot: string, path: string): void;
   moveFile(workspaceRoot: string, path: string, newPath: string): void;
-  applyPatch(workspaceRoot: string, patch: FilePatch): { applied: number; errors: string[] };
+  applyPatch(workspaceRoot: string, patch: FilePatch, options?: FileOperationApplyPatchOptions): { applied: number; errors: string[] };
 }
 
 export function createFileOperationService(): FileOperationService {
@@ -68,7 +76,8 @@ export function createFileOperationService(): FileOperationService {
       renameSync(abs, absNew);
     },
 
-    applyPatch(root, patch) {
+    applyPatch(root, patch, options = {}) {
+      throwIfAborted(options.signal);
       const validation = validatePatch(patch, root);
       if (!validation.valid) {
         throw new AppError(ErrorCode.FILE_OP_PATCH_INVALID, { details: { errors: validation.errors } });
@@ -76,6 +85,7 @@ export function createFileOperationService(): FileOperationService {
       let applied = 0;
       const errors: string[] = [];
       for (const op of patch.operations) {
+        throwIfAborted(options.signal);
         try {
           if (op.op === "create" || op.op === "update") {
             const abs = resolveInsideBase(root, op.path);
