@@ -106,26 +106,17 @@
   <script type="text/babel" src="ui/lib/theme.js"></script>
   <script type="text/babel" src="ui/lib/icons.jsx"></script>
 
-  <!-- Components -->
+  <!-- Components (dependency order: leaf components first, then composites) -->
   <script type="text/babel" src="ui/components/StatusBadge.jsx"></script>
   <script type="text/babel" src="ui/components/ErrorBoundary.jsx"></script>
-  <script type="text/babel" src="ui/components/MarkdownRenderer.jsx"></script>
-  <script type="text/babel" src="ui/components/MessageItem.jsx"></script>
-  <script type="text/babel" src="ui/components/ChatColumn.jsx"></script>
-  <script type="text/babel" src="ui/components/InspectorColumn.jsx"></script>
   <script type="text/babel" src="ui/components/EmptyState.jsx"></script>
   <script type="text/babel" src="ui/components/PageHeader.jsx"></script>
   <script type="text/babel" src="ui/components/MetricCard.jsx"></script>
   <script type="text/babel" src="ui/components/ProjectCard.jsx"></script>
-  <script type="text/babel" src="ui/components/ArtifactTable.jsx"></script>
-  <script type="text/babel" src="ui/components/BuildLogPanel.jsx"></script>
-  <script type="text/babel" src="ui/components/PromptComposer.jsx"></script>
   <script type="text/babel" src="ui/components/CustomSelect.jsx"></script>
+  <script type="text/babel" src="ui/components/PromptComposer.jsx"></script>
   <script type="text/babel" src="ui/components/ProviderForm.jsx"></script>
   <script type="text/babel" src="ui/components/ModelProfileForm.jsx"></script>
-  <script type="text/babel" src="ui/components/Sidebar.jsx"></script>
-  <script type="text/babel" src="ui/components/Topbar.jsx"></script>
-  <script type="text/babel" src="ui/components/AppShell.jsx"></script>
   <script type="text/babel" src="ui/components/WorkflowStepCard.jsx"></script>
   <script type="text/babel" src="ui/components/MCVersionPicker.jsx"></script>
   <script type="text/babel" src="ui/components/ActivityPanel.jsx"></script>
@@ -133,6 +124,16 @@
   <script type="text/babel" src="ui/components/FileTreeView.jsx"></script>
   <script type="text/babel" src="ui/components/FilePreviewPane.jsx"></script>
   <script type="text/babel" src="ui/components/PatchReviewModal.jsx"></script>
+  <script type="text/babel" src="ui/components/ArtifactTable.jsx"></script>
+  <script type="text/babel" src="ui/components/BuildLogPanel.jsx"></script>
+  <script type="text/babel" src="ui/components/MarkdownRenderer.jsx"></script>
+  <script type="text/babel" src="ui/components/MessageItem.jsx"></script>
+  <!-- Chat-First IDE composites (depend on above) -->
+  <script type="text/babel" src="ui/components/ChatColumn.jsx"></script>
+  <script type="text/babel" src="ui/components/InspectorColumn.jsx"></script>
+  <script type="text/babel" src="ui/components/Sidebar.jsx"></script>
+  <script type="text/babel" src="ui/components/Topbar.jsx"></script>
+  <script type="text/babel" src="ui/components/AppShell.jsx"></script>
 
   <!-- Pages (Chat-First IDE: Dashboard/Projects/Workspace/Builds merged into ChatColumn + InspectorColumn) -->
   <script type="text/babel" src="ui/pages/Workflows.jsx"></script>
