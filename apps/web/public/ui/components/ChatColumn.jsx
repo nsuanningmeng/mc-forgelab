@@ -7,18 +7,28 @@ window.MCFL = window.MCFL || {};
     const [state, setState] = useState(Store.getState());
     const [input, setInput] = useState('');
     const scrollRef = useRef(null);
+    const isNearBottomRef = useRef(true);
 
     useEffect(() => {
       const unsub = Store.subscribe(setState);
       api.workflows().then(ws => Store.dispatch('SET_WORKFLOWS', ws));
-      return unsub;
+      return () => {
+        unsub();
+        Store.cancelStream();
+      };
     }, []);
 
     useEffect(() => {
-      if (scrollRef.current) {
+      if (scrollRef.current && isNearBottomRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       }
     }, [state.messages, state.streamingMessage]);
+
+    const handleScroll = () => {
+      if (!scrollRef.current) return;
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 100;
+    };
 
     const handleSend = async () => {
       if (!input.trim() || state.workflowStatus === 'running') return;
@@ -75,7 +85,7 @@ window.MCFL = window.MCFL || {};
           </div>
         </header>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 scroll-smooth">
+        <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-6 scroll-smooth">
           <div className="max-w-3xl mx-auto">
             {state.messages.length === 0 && !state.streamingMessage && (
               <div className="h-full flex flex-col items-center justify-center py-20 text-center">

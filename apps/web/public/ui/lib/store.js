@@ -15,6 +15,7 @@ window.MCFL = window.MCFL || {};
         workflows: [],
       };
       this.listeners = new Set();
+      this._activeStream = null;
     }
 
     getState() {
@@ -61,13 +62,22 @@ window.MCFL = window.MCFL || {};
       this.notify();
     }
 
+    cancelStream() {
+      if (this._activeStream) {
+        this._activeStream.close();
+        this._activeStream = null;
+      }
+    }
+
     async initWorkflowStream(runId) {
+      this.cancelStream();
       this.dispatch('SET_WORKFLOW_STATUS', 'running');
       this.dispatch('UPDATE_STREAMING', { role: 'assistant', type: 'text', content: '', status: 'streaming' });
 
       let currentText = '';
 
       const es = api.streamWorkflowRun(runId, (event) => {
+        this._activeStream = es;
         switch (event.type) {
           case 'model_delta':
             currentText += event.chunk || '';
