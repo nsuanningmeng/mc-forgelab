@@ -43,9 +43,9 @@ window.MCFL = window.MCFL || {};
           badge={copied ? <StatusBadge variant="success" label={t.common.copied} /> : null}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-8">
           <aside>
-            <div className={cx.sectionTitle}>Projects</div>
+            <div className={cx.j(cx.sectionTitle, "opacity-70 mt-1.5")}>{t.common.projects}</div>
             {projects.length === 0 ? (
               <EmptyState icon="folder" title={t.dash.noProjects} variant="early-dev" />
             ) : (
@@ -57,7 +57,7 @@ window.MCFL = window.MCFL || {};
             )}
           </aside>
 
-          <section>
+          <section className="min-w-0">
             {!project ? (
               <EmptyState icon="box" title={t.art.pickProject} variant="default" />
             ) : artifacts === null ? (

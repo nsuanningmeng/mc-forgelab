@@ -5,7 +5,7 @@ export const BUILTIN_WORKFLOWS: readonly WorkflowDefinition[] = [
     id: "simple-single-model",
     name: "单模型快速开发",
     mode: "single-model",
-    description: "一个模型负责完整开发流程，适合简单 Paper 插件",
+    description: "一个模型负责完整开发流程，适合简单插件或脚本",
     steps: [
       { id: "analyze", role: "requirement_analyst", modelProfile: "plannerModel", input: ["userPrompt"], output: "requirementSpec", required: true },
       { id: "plan", role: "architect", modelProfile: "plannerModel", input: ["requirementSpec"], output: "projectPlan", required: true },
@@ -20,9 +20,9 @@ export const BUILTIN_WORKFLOWS: readonly WorkflowDefinition[] = [
   },
   {
     id: "paper-plugin-standard",
-    name: "Paper 插件标准开发工作流",
+    name: "通用插件开发工作流",
     mode: "multi-model",
-    description: "适合生成 Paper/Purpur/Spigot 插件，多模型专业工作流",
+    description: "适合生成 Paper/Purpur/Spigot 等 Bukkit 系列插件，多模型专业工作流",
     steps: [
       { id: "analyze", role: "requirement_analyst", modelProfile: "plannerModel", input: ["userPrompt", "projectContext"], output: "requirementSpec", required: true },
       { id: "plan", role: "architect", modelProfile: "architectModel", input: ["requirementSpec"], output: "projectPlan", required: true },
@@ -39,9 +39,9 @@ export const BUILTIN_WORKFLOWS: readonly WorkflowDefinition[] = [
   },
   {
     id: "fabric-mod-standard",
-    name: "Fabric 模组标准开发工作流",
+    name: "通用模组开发工作流",
     mode: "multi-model",
-    description: "适合生成 Fabric 模组",
+    description: "适合生成 Fabric/Forge/NeoForge/Quilt 等各类模组",
     steps: [
       { id: "analyze", role: "requirement_analyst", modelProfile: "plannerModel", input: ["userPrompt"], output: "requirementSpec", required: true },
       { id: "plan", role: "architect", modelProfile: "architectModel", input: ["requirementSpec"], output: "projectPlan", required: true },
@@ -55,9 +55,9 @@ export const BUILTIN_WORKFLOWS: readonly WorkflowDefinition[] = [
   },
   {
     id: "velocity-plugin-standard",
-    name: "Velocity 插件标准开发工作流",
+    name: "通用代理端插件工作流",
     mode: "multi-model",
-    description: "适合生成 Velocity 代理端插件",
+    description: "适合生成 Velocity/BungeeCord 代理端插件",
     steps: [
       { id: "analyze", role: "requirement_analyst", modelProfile: "plannerModel", input: ["userPrompt"], output: "requirementSpec", required: true },
       { id: "plan", role: "architect", modelProfile: "architectModel", input: ["requirementSpec"], output: "projectPlan", required: true },

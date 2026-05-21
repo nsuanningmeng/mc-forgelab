@@ -250,10 +250,6 @@ window.MCFL.LANGS = {
       copySha: "复制 SHA-256",
     },
 
-    earlyDev: "早期开发",
-    mvpTarget: "MVP 目标",
-    comingSoon: "即将到来",
-
     settings: {
       title: "设置",
       subtitle: "Provider / 模型 / 工具链 / 工作区 / 安全 / 代理 / 外观",
@@ -280,6 +276,7 @@ window.MCFL.LANGS = {
       theme: "主题",
       dark: "深色",
       light: "浅色",
+      system: "跟随系统",
       profiles: {
         title: "模型配置",
         empty: "暂无模型配置。点击下方按钮添加。",
@@ -618,6 +615,7 @@ window.MCFL.LANGS = {
       theme: "Theme",
       dark: "Dark",
       light: "Light",
+      system: "System",
       profiles: {
         title: "Model profiles",
         empty: "No model profiles configured. Click below to add one.",

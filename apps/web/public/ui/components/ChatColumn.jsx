@@ -1,7 +1,7 @@
 window.MCFL = window.MCFL || {};
 (function () {
-  const { useState, useEffect, useRef } = React;
-  const { Store, MessageItem, cx, Icon, api } = window.MCFL;
+  const { useState, useEffect, useRef, useMemo } = React;
+  const { Store, MessageItem, cx, Icon, api, CustomSelect } = window.MCFL;
 
   function ChatColumn({ t }) {
     const [state, setState] = useState(Store.getState());
@@ -67,13 +67,13 @@ window.MCFL = window.MCFL || {};
       }
     };
 
-    const onProjectChange = (e) => {
-      const proj = state.projects.find(p => p.id === e.target.value);
+    const onProjectChange = (val) => {
+      const proj = state.projects.find(p => p.id === val);
       Store.dispatch('SET_PROJECT', proj);
     };
 
-    const onWorkflowChange = (e) => {
-      Store.dispatch('SET_ACTIVE_WORKFLOW', e.target.value);
+    const onWorkflowChange = (val) => {
+      Store.dispatch('SET_ACTIVE_WORKFLOW', val);
     };
 
     const handleCreateProject = async () => {
@@ -94,22 +94,29 @@ window.MCFL = window.MCFL || {};
       }
     };
 
+    const projectOptions = useMemo(() => 
+      state.projects.map(p => ({ value: p.id, label: p.name })),
+      [state.projects]
+    );
+
+    const workflowOptions = useMemo(() => 
+      state.workflows.map(w => ({ value: w.id, label: w.name })),
+      [state.workflows]
+    );
+
     return (
       <div className="flex-1 flex flex-col min-w-0 bg-bg">
         <header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0 bg-surface/50 backdrop-blur-sm z-10">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="flex items-center gap-2 bg-elevated/50 px-2 py-1 rounded border border-border/50">
               <Icon name="folder" className="w-4 h-4 text-tx3" />
-              <select
-                value={state.activeProjectId || ''}
+              <CustomSelect
+                value={state.activeProjectId}
                 onChange={onProjectChange}
-                className="bg-transparent text-sm font-semibold text-tx1 outline-none cursor-pointer max-w-[150px] truncate"
-              >
-                {!state.activeProjectId && <option value="">{t.topbar?.noProject || "Select Project..."}</option>}
-                {state.projects.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+                options={projectOptions}
+                placeholder={t.topbar?.noProject || "Select Project..."}
+                className="!bg-transparent !border-none !p-0 !h-auto !ring-0 !w-auto min-w-[120px]"
+              />
               <button
                 onClick={() => setShowNewProject(!showNewProject)}
                 className="w-6 h-6 rounded flex items-center justify-center text-tx3 hover:text-mc hover:bg-elevated transition-colors"
@@ -119,23 +126,23 @@ window.MCFL = window.MCFL || {};
               </button>
             </div>
             {showNewProject && (
-              <div className="flex items-center gap-2 bg-elevated/50 px-2 py-1 rounded border border-border/50">
+              <div className="flex items-center gap-2 bg-elevated/50 px-2 py-1 rounded border border-border/50 animate-in fade-in slide-in-from-left-2">
                 <input
                   type="text"
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleCreateProject(); }}
                   placeholder={t.proj?.name || "Project name"}
-                  className="bg-transparent text-sm text-tx1 outline-none w-32"
+                  className="bg-transparent text-sm text-tx1 outline-none w-32 placeholder:text-tx3"
                   autoFocus
                 />
-                <button onClick={handleCreateProject} className="text-xs text-mc hover:underline">{t.common?.create || "Create"}</button>
+                <button onClick={handleCreateProject} className="text-xs text-mc hover:underline font-medium">{t.common?.create || "Create"}</button>
                 <button onClick={() => { setShowNewProject(false); setNewProjectName(''); }} className="text-xs text-tx3 hover:text-tx1">{t.common?.cancel || "Cancel"}</button>
               </div>
             )}
             {state.activeProject && (
               <div className="hidden sm:flex items-center gap-2 text-[10px] text-tx3 mcfl-mono bg-bg/50 px-2 py-1 rounded border border-border/30">
-                <span>{state.activeProject.target_id}</span>
+                <span className="uppercase">{state.activeProject.target_id}</span>
                 <span className="opacity-30">|</span>
                 <span>{state.activeProject.minecraft_version}</span>
               </div>
@@ -144,25 +151,22 @@ window.MCFL = window.MCFL || {};
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-tx3 uppercase tracking-tighter hidden lg:block">{t.ws?.workflow || "Workflow"}:</span>
-              <select
+              <span className="text-[10px] text-tx3 uppercase tracking-tighter hidden lg:block font-semibold">{t.ws?.workflow || "Workflow"}:</span>
+              <CustomSelect
                 value={state.activeWorkflowId}
                 onChange={onWorkflowChange}
-                className="bg-elevated border border-border rounded px-2 py-1 text-xs text-tx2 outline-none focus:border-mc/50 cursor-pointer"
-              >
-                {state.workflows.map(w => (
-                  <option key={w.id} value={w.id}>{w.name}</option>
-                ))}
-              </select>
+                options={workflowOptions}
+                className="!h-8 !w-48"
+              />
             </div>
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-elevated/30 rounded-full border border-border/50">
+            <div className="flex items-center gap-2 px-2.5 py-1 bg-elevated/30 rounded-full border border-border/50">
               <div className={cx.j(
                 "w-2 h-2 rounded-full",
                 state.workflowStatus === 'running' ? "bg-mc animate-pulse" :
                 state.workflowStatus === 'success' ? "bg-green-500" :
                 state.workflowStatus === 'failed' ? "bg-red-500" : "bg-tx3"
               )} />
-              <span className="text-[10px] text-tx2 font-medium capitalize">
+              <span className="text-[10px] text-tx2 font-bold tracking-tight uppercase">
                 {state.workflowStatus === 'running' && state.streamingMessage?.step ? state.streamingMessage.step : state.workflowStatus}
               </span>
             </div>
@@ -173,13 +177,13 @@ window.MCFL = window.MCFL || {};
           <div className="max-w-3xl mx-auto">
             {state.messages.length === 0 && !state.streamingMessage && (
               <div className="h-full flex flex-col items-center justify-center py-20 text-center">
-                <div className="w-16 h-16 bg-elevated rounded-2xl flex items-center justify-center mb-4 text-tx3">
+                <div className="w-16 h-16 bg-elevated rounded-2xl flex items-center justify-center mb-4 text-tx3 shadow-xl border border-border/50">
                   <Icon name="spark" className="w-8 h-8" />
                 </div>
                 <h3 className="text-lg font-medium text-tx1 mb-2">{t.ws?.title || "AI Workspace"}</h3>
                 <p className="text-sm text-tx3 max-w-sm">{t.ws?.subtitle || "Describe what you want to build"}</p>
                 {!state.activeProjectId && (
-                  <p className="mt-4 text-mc text-xs animate-bounce">{t.ws?.pickProject || "Select a project to start"}</p>
+                  <p className="mt-4 text-mc text-xs animate-bounce font-medium">{t.ws?.pickProject || "Select a project to start"}</p>
                 )}
               </div>
             )}
@@ -221,7 +225,7 @@ window.MCFL = window.MCFL || {};
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-mc opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-mc"></span>
                 </span>
-                <span className="animate-pulse font-medium">{t.ws?.runRunning || "Processing..."}</span>
+                <span className="animate-pulse font-bold uppercase tracking-wider">{t.ws?.runRunning || "Processing..."}</span>
               </div>
             )}
           </div>
