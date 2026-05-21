@@ -11,7 +11,11 @@ window.MCFL = window.MCFL || {};
 
     useEffect(() => {
       const unsub = Store.subscribe(setState);
-      api.workflows().then(ws => Store.dispatch('SET_WORKFLOWS', ws));
+      Promise.all([
+        api.workflows().then(ws => Store.dispatch('SET_WORKFLOWS', ws)),
+        api.projects().then(ps => Store.dispatch('SET_PROJECTS', ps))
+      ]).catch(err => console.error("Failed to load workspace data", err));
+
       return () => {
         unsub();
         Store.cancelStream();
@@ -32,6 +36,10 @@ window.MCFL = window.MCFL || {};
 
     const handleSend = async () => {
       if (!input.trim() || state.workflowStatus === 'running') return;
+      if (!state.activeProjectId) {
+        alert(t.ws?.pickProject || "Please select a project first");
+        return;
+      }
 
       const userPrompt = input.trim();
       setInput('');
@@ -39,10 +47,9 @@ window.MCFL = window.MCFL || {};
       Store.dispatch('ADD_MESSAGE', { role: 'user', type: 'text', content: userPrompt });
 
       try {
-        const selectedWorkflow = state.workflows[0]?.id || 'simple-single-model';
         const run = await api.startWorkflowRun({
           projectId: state.activeProjectId,
-          workflowId: selectedWorkflow,
+          workflowId: state.activeWorkflowId,
           prompt: userPrompt
         });
         Store.initWorkflowStream(run.runId);
@@ -58,30 +65,65 @@ window.MCFL = window.MCFL || {};
       }
     };
 
+    const onProjectChange = (e) => {
+      const proj = state.projects.find(p => p.id === e.target.value);
+      Store.dispatch('SET_PROJECT', proj);
+    };
+
+    const onWorkflowChange = (e) => {
+      Store.dispatch('SET_ACTIVE_WORKFLOW', e.target.value);
+    };
+
     return (
       <div className="flex-1 flex flex-col min-w-0 bg-bg">
-        <header className="h-14 border-b border-border flex items-center justify-between px-6 shrink-0 bg-surface/50 backdrop-blur-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold text-tx1">{state.activeProject?.name || t.ws.title}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-tx3 uppercase tracking-wider mcfl-mono">
-                  {state.activeProject?.target_id} {state.activeProject && '·'} {state.activeProject?.minecraft_version}
-                </span>
-              </div>
+        <header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0 bg-surface/50 backdrop-blur-sm z-10">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="flex items-center gap-2 bg-elevated/50 px-2 py-1 rounded border border-border/50">
+              <Icon name="folder" className="w-4 h-4 text-tx3" />
+              <select
+                value={state.activeProjectId || ''}
+                onChange={onProjectChange}
+                className="bg-transparent text-sm font-semibold text-tx1 outline-none cursor-pointer max-w-[150px] truncate"
+              >
+                {!state.activeProjectId && <option value="">{t.topbar?.noProject || "Select Project..."}</option>}
+                {state.projects.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
             </div>
+            {state.activeProject && (
+              <div className="hidden sm:flex items-center gap-2 text-[10px] text-tx3 mcfl-mono bg-bg/50 px-2 py-1 rounded border border-border/30">
+                <span>{state.activeProject.target_id}</span>
+                <span className="opacity-30">|</span>
+                <span>{state.activeProject.minecraft_version}</span>
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <select className="bg-elevated border border-border rounded px-2 py-1 text-xs text-tx2 outline-none focus:border-mc/50">
-              {state.workflows.map(w => (
-                <option key={w.id} value={w.id}>{w.name}</option>
-              ))}
-            </select>
-            <div className={cx.j(
-              "w-2 h-2 rounded-full",
-              state.workflowStatus === 'running' ? "bg-mc animate-pulse" : "bg-tx3"
-            )} />
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-tx3 uppercase tracking-tighter hidden lg:block">{t.ws?.workflow || "Workflow"}:</span>
+              <select
+                value={state.activeWorkflowId}
+                onChange={onWorkflowChange}
+                className="bg-elevated border border-border rounded px-2 py-1 text-xs text-tx2 outline-none focus:border-mc/50 cursor-pointer"
+              >
+                {state.workflows.map(w => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-elevated/30 rounded-full border border-border/50">
+              <div className={cx.j(
+                "w-2 h-2 rounded-full",
+                state.workflowStatus === 'running' ? "bg-mc animate-pulse" :
+                state.workflowStatus === 'success' ? "bg-green-500" :
+                state.workflowStatus === 'failed' ? "bg-red-500" : "bg-tx3"
+              )} />
+              <span className="text-[10px] text-tx2 font-medium capitalize">
+                {state.workflowStatus === 'running' && state.streamingMessage?.step ? state.streamingMessage.step : state.workflowStatus}
+              </span>
+            </div>
           </div>
         </header>
 
@@ -92,8 +134,11 @@ window.MCFL = window.MCFL || {};
                 <div className="w-16 h-16 bg-elevated rounded-2xl flex items-center justify-center mb-4 text-tx3">
                   <Icon name="spark" className="w-8 h-8" />
                 </div>
-                <h3 className="text-lg font-medium text-tx1 mb-2">{t.ws.title}</h3>
-                <p className="text-sm text-tx3 max-w-sm">{t.ws.subtitle}</p>
+                <h3 className="text-lg font-medium text-tx1 mb-2">{t.ws?.title || "AI Workspace"}</h3>
+                <p className="text-sm text-tx3 max-w-sm">{t.ws?.subtitle || "Describe what you want to build"}</p>
+                {!state.activeProjectId && (
+                  <p className="mt-4 text-mc text-xs animate-bounce">{t.ws?.pickProject || "Select a project to start"}</p>
+                )}
               </div>
             )}
             {state.messages.map(msg => (
@@ -111,23 +156,32 @@ window.MCFL = window.MCFL || {};
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={t.ws.promptPlaceholder || "Describe what you want to build..."}
+              placeholder={t.ws?.promptPlaceholder || "Describe what you want to build..."}
               className={cx.j(cx.textarea, "pr-12 min-h-[80px] max-h-[300px] py-3 shadow-lg")}
               disabled={state.workflowStatus === 'running'}
             />
             <button
               onClick={handleSend}
               disabled={!input.trim() || state.workflowStatus === 'running'}
-              className="absolute right-3 bottom-3 w-8 h-8 bg-mc text-surface rounded-md flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50 disabled:scale-100"
+              className="absolute right-3 bottom-3 w-8 h-8 bg-mc text-white rounded-md flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50 disabled:scale-100 shadow-mc/20 shadow-lg"
             >
               <Icon name="spark" className="w-4 h-4" />
             </button>
           </div>
           <div className="max-w-3xl mx-auto mt-2 flex items-center justify-between text-[10px] text-tx3 px-1">
             <div className="flex gap-4">
-              <span className="flex items-center gap-1"><kbd className="bg-elevated px-1 rounded">Enter</kbd> to send</span>
-              <span className="flex items-center gap-1"><kbd className="bg-elevated px-1 rounded">Shift+Enter</kbd> for newline</span>
+              <span className="flex items-center gap-1"><kbd className="bg-elevated px-1 rounded border border-border/50">Enter</kbd> to send</span>
+              <span className="flex items-center gap-1"><kbd className="bg-elevated px-1 rounded border border-border/50">Shift+Enter</kbd> for newline</span>
             </div>
+            {state.workflowStatus === 'running' && (
+              <div className="flex items-center gap-2 text-mc">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-mc opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-mc"></span>
+                </span>
+                <span className="animate-pulse font-medium">{t.ws?.runRunning || "Processing..."}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
