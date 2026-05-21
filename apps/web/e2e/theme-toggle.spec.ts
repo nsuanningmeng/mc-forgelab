@@ -14,8 +14,10 @@ test.describe('Theme Toggle Persistence', () => {
     // Theme chips live on the Settings page.
     await page.waitForSelector('[data-testid="nav-settings"]', { timeout: 15000 });
     await page.getByTestId('nav-settings').click();
-    await page.waitForSelector('[data-testid="theme-light"]', { timeout: 10000 });
-    await page.getByTestId('theme-light').click();
+    const themeLight = page.getByTestId('theme-light');
+    await themeLight.scrollIntoViewIfNeeded({ timeout: 10000 });
+    await expect(themeLight).toBeVisible({ timeout: 5000 });
+    await themeLight.click();
     await expect(html).toHaveAttribute('data-theme', 'light');
 
     // localStorage key is `mcfl.theme` (NOT `mcfl-theme`) — see theme.js:3.
@@ -27,8 +29,12 @@ test.describe('Theme Toggle Persistence', () => {
     await expect(html).toHaveAttribute('data-theme', 'light');
 
     // Reset for any subsequent tests (workers=1 → shared browser state).
+    await page.waitForSelector('[data-testid="nav-settings"]', { timeout: 15000 });
     await page.getByTestId('nav-settings').click();
-    await page.getByTestId('theme-dark').click();
+    const themeDark = page.getByTestId('theme-dark');
+    await themeDark.scrollIntoViewIfNeeded({ timeout: 10000 });
+    await expect(themeDark).toBeVisible({ timeout: 5000 });
+    await themeDark.click();
     await expect(html).toHaveAttribute('data-theme', 'dark');
   });
 });

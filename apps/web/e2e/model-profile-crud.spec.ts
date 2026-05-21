@@ -9,6 +9,7 @@ test.describe('AI Settings CRUD', () => {
 
     // 1. Create Provider
     const providerSection = page.getByTestId('ai-providers-section');
+    await providerSection.scrollIntoViewIfNeeded({ timeout: 10000 });
     await expect(providerSection).toBeVisible({ timeout: 10000 });
     await providerSection.getByTestId('add-provider-btn').click();
 
