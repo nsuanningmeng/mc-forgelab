@@ -133,6 +133,8 @@ window.MCFL.LANGS = {
       noArtifacts: "暂无产物",
       noProject: "未选择项目",
       noProjectHint: "选择或创建项目开始编码",
+      clearChat: "清空对话",
+      confirmClear: "确定要清空对话历史吗？",
     },
 
     proj: {
@@ -468,6 +470,8 @@ window.MCFL.LANGS = {
       noArtifacts: "No artifacts built yet",
       noProject: "No Project Selected",
       noProjectHint: "Select or create a project",
+      clearChat: "Clear Chat",
+      confirmClear: "Are you sure you want to clear the conversation history?",
     },
 
     proj: {

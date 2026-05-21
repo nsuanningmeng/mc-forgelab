@@ -76,6 +76,12 @@ window.MCFL = window.MCFL || {};
       Store.dispatch('SET_ACTIVE_WORKFLOW', val);
     };
 
+    const handleClearChat = () => {
+      if (window.confirm(t.ws?.confirmClear || "Are you sure you want to clear the conversation history?")) {
+        Store.dispatch('CLEAR_MESSAGES');
+      }
+    };
+
     const handleCreateProject = async () => {
       if (!newProjectName.trim()) return;
       try {
@@ -150,6 +156,16 @@ window.MCFL = window.MCFL || {};
           </div>
 
           <div className="flex items-center gap-3">
+            {state.messages.length > 0 && (
+              <button
+                onClick={handleClearChat}
+                className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold text-tx3 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors uppercase tracking-tight"
+                title={t.ws?.clearChat || "Clear Conversation"}
+              >
+                <Icon name="trash" className="w-3 h-3" />
+                <span className="hidden md:inline">{t.ws?.clearChat || "Clear Chat"}</span>
+              </button>
+            )}
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-tx3 uppercase tracking-tighter hidden lg:block font-semibold">{t.ws?.workflow || "Workflow"}:</span>
               <CustomSelect

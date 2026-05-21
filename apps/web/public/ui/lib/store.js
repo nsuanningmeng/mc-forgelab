@@ -21,6 +21,31 @@ window.MCFL = window.MCFL || {};
       this._activeStream = null;
     }
 
+    _getStorageKey(projectId) {
+      return `mcfl.chat.${projectId || 'default'}`;
+    }
+
+    _loadMessages(projectId) {
+      const key = this._getStorageKey(projectId);
+      try {
+        const saved = localStorage.getItem(key);
+        return saved ? JSON.parse(saved) : [];
+      } catch (e) {
+        console.error('Failed to load chat history', e);
+        return [];
+      }
+    }
+
+    _saveMessages(projectId, messages) {
+      const key = this._getStorageKey(projectId);
+      const toSave = messages.slice(-100);
+      try {
+        localStorage.setItem(key, JSON.stringify(toSave));
+      } catch (e) {
+        console.error('Failed to save chat history', e);
+      }
+    }
+
     getState() {
       return this.state;
     }
@@ -41,21 +66,30 @@ window.MCFL = window.MCFL || {};
           if (!this.state.activeProjectId && payload.length > 0) {
             this.state.activeProjectId = payload[0].id;
             this.state.activeProject = payload[0];
+            this.state.messages = this._loadMessages(this.state.activeProjectId);
           }
           break;
         case 'SET_PROJECT':
           this.state.activeProjectId = payload?.id || null;
           this.state.activeProject = payload;
+          this.state.messages = this._loadMessages(this.state.activeProjectId);
           break;
         case 'SET_ACTIVE_WORKFLOW':
           this.state.activeWorkflowId = payload;
           break;
-        case 'ADD_MESSAGE':
-          this.state.messages = [...this.state.messages, {
+        case 'ADD_MESSAGE': {
+          const newMessage = {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
             timestamp: new Date().toISOString(),
             ...payload
-          }];
+          };
+          this.state.messages = [...this.state.messages, newMessage].slice(-100);
+          this._saveMessages(this.state.activeProjectId, this.state.messages);
+          break;
+        }
+        case 'CLEAR_MESSAGES':
+          this.state.messages = [];
+          this._saveMessages(this.state.activeProjectId, []);
           break;
         case 'UPDATE_STREAMING':
           this.state.streamingMessage = payload;
