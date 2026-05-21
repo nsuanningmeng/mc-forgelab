@@ -6,6 +6,8 @@ window.MCFL = window.MCFL || {};
   function ChatColumn({ t }) {
     const [state, setState] = useState(Store.getState());
     const [input, setInput] = useState('');
+    const [showNewProject, setShowNewProject] = useState(false);
+    const [newProjectName, setNewProjectName] = useState('');
     const scrollRef = useRef(null);
     const isNearBottomRef = useRef(true);
 
@@ -74,6 +76,24 @@ window.MCFL = window.MCFL || {};
       Store.dispatch('SET_ACTIVE_WORKFLOW', e.target.value);
     };
 
+    const handleCreateProject = async () => {
+      if (!newProjectName.trim()) return;
+      try {
+        const project = await api.createProject({
+          name: newProjectName.trim(),
+          targetId: 'paper',
+          minecraftVersion: '1.21.4',
+          packageName: 'com.example.' + newProjectName.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+        });
+        Store.dispatch('SET_PROJECT', project);
+        Store.dispatch('SET_PROJECTS', [...state.projects, project]);
+        setShowNewProject(false);
+        setNewProjectName('');
+      } catch (err) {
+        alert('Failed to create project: ' + err.message);
+      }
+    };
+
     return (
       <div className="flex-1 flex flex-col min-w-0 bg-bg">
         <header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0 bg-surface/50 backdrop-blur-sm z-10">
@@ -90,7 +110,29 @@ window.MCFL = window.MCFL || {};
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
+              <button
+                onClick={() => setShowNewProject(!showNewProject)}
+                className="w-6 h-6 rounded flex items-center justify-center text-tx3 hover:text-mc hover:bg-elevated transition-colors"
+                title={t.proj?.newProject || "New Project"}
+              >
+                <Icon name="plus" className="w-3.5 h-3.5" />
+              </button>
             </div>
+            {showNewProject && (
+              <div className="flex items-center gap-2 bg-elevated/50 px-2 py-1 rounded border border-border/50">
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreateProject(); }}
+                  placeholder={t.proj?.name || "Project name"}
+                  className="bg-transparent text-sm text-tx1 outline-none w-32"
+                  autoFocus
+                />
+                <button onClick={handleCreateProject} className="text-xs text-mc hover:underline">{t.common?.create || "Create"}</button>
+                <button onClick={() => { setShowNewProject(false); setNewProjectName(''); }} className="text-xs text-tx3 hover:text-tx1">{t.common?.cancel || "Cancel"}</button>
+              </div>
+            )}
             {state.activeProject && (
               <div className="hidden sm:flex items-center gap-2 text-[10px] text-tx3 mcfl-mono bg-bg/50 px-2 py-1 rounded border border-border/30">
                 <span>{state.activeProject.target_id}</span>
