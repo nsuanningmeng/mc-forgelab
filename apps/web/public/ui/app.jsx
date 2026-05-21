@@ -1,24 +1,24 @@
 window.MCFL = window.MCFL || {};
 (function () {
-  const { useState, useEffect, useMemo } = React;
-  const { theme, LANGS, ErrorBoundary, Sidebar, Topbar, Dashboard, Projects, Workspace, Builds, Artifacts, Toolchains, Settings, Knowledge, ProjectDetail, Icon } = window.MCFL;
+  const { useState, useEffect } = React;
+  const {
+    theme, LANGS, ErrorBoundary, Sidebar, Topbar,
+    Store, ChatColumn, InspectorColumn,
+    Dashboard, Projects, Builds, Artifacts, Toolchains, Settings, Knowledge, Icon
+  } = window.MCFL;
 
   function App() {
     const [lang, setLang] = useState(localStorage.getItem('mcfl.lang') || 'zh');
     const [t, setT] = useState(LANGS[lang]);
-    const [page, setPage] = useState('dashboard');
-    const [selectedProject, setSelectedProject] = useState(null);
+    const [page, setPage] = useState('workspace');
     const [activeTheme, setActiveTheme] = useState(theme.getTheme());
     const [health, setHealth] = useState(null);
-    const [newProjectIntent, setNewProjectIntent] = useState(false);
-
-    const startNewProject = () => {
-      setNewProjectIntent(true);
-      setPage('projects');
-    };
+    const [storeState, setStoreState] = useState(Store.getState());
 
     useEffect(() => {
       theme.setTheme(activeTheme);
+      const unsub = Store.subscribe(setStoreState);
+      return unsub;
     }, []);
 
     useEffect(() => {
@@ -36,47 +36,54 @@ window.MCFL = window.MCFL || {};
       theme.setTheme(newTheme);
     };
 
-    const handleSelectProject = (p) => {
-      setSelectedProject(p);
-      setPage('project-detail');
-    };
-
-    const handleOpenWorkspace = (p) => {
-      setSelectedProject(p);
-      setPage('workspace');
-    };
-
-    const renderPage = () => {
+    const renderContent = () => {
       const props = { t, lang, onSetLang: handleSetLang, onSetTheme: handleSetTheme, theme: activeTheme };
+
+      if (page === 'workspace') {
+        return (
+          <div className="flex-1 flex overflow-hidden">
+            <ChatColumn t={t} />
+            <InspectorColumn t={t} />
+          </div>
+        );
+      }
+
       switch (page) {
-        case 'dashboard': return <Dashboard {...props} onSelectProject={handleSelectProject} onStartNewProject={startNewProject} />;
-        case 'projects': return <Projects {...props} onSelectProject={handleSelectProject} newProjectIntent={newProjectIntent} onConsumeNewProjectIntent={() => setNewProjectIntent(false)} />;
-        case 'workspace': return <Workspace {...props} selectedProject={selectedProject} onSelectProject={setSelectedProject} />;
-        case 'builds': return <Builds {...props} project={selectedProject} onSelect={setSelectedProject} />;
-        case 'artifacts': return <Artifacts {...props} project={selectedProject} onSelect={setSelectedProject} />;
-        case 'knowledge': return <Knowledge {...props} />;
-        case 'toolchains': return <Toolchains {...props} />;
-        case 'settings': return <Settings {...props} onSetTheme={handleSetTheme} />;
-        case 'project-detail': return <ProjectDetail {...props} project={selectedProject} onBack={() => setPage('projects')} onSelectWorkspace={handleOpenWorkspace} />;
-        default: return <Dashboard {...props} onSelectProject={handleSelectProject} />;
+        case 'dashboard': return <div className="flex-1 overflow-y-auto"><Dashboard {...props} onSelectProject={(p) => { Store.dispatch('SET_PROJECT', p); setPage('workspace'); }} /></div>;
+        case 'projects': return <div className="flex-1 overflow-y-auto"><Projects {...props} onSelectProject={(p) => { Store.dispatch('SET_PROJECT', p); setPage('workspace'); }} /></div>;
+        case 'builds': return <div className="flex-1 overflow-y-auto"><Builds {...props} /></div>;
+        case 'artifacts': return <div className="flex-1 overflow-y-auto"><Artifacts {...props} /></div>;
+        case 'knowledge': return <div className="flex-1 overflow-y-auto"><Knowledge {...props} /></div>;
+        case 'toolchains': return <div className="flex-1 overflow-y-auto"><Toolchains {...props} /></div>;
+        case 'settings': return <div className="flex-1 overflow-y-auto"><Settings {...props} onSetTheme={handleSetTheme} /></div>;
+        default: return <div className="flex-1 overflow-y-auto"><Dashboard {...props} /></div>;
       }
     };
 
     return (
-      <div className="flex h-screen overflow-hidden">
-        <Sidebar t={t} activePage={page} onNavigate={setPage} />
-        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <Topbar t={t} selectedProject={selectedProject} onSetLang={handleSetLang} lang={lang} currentTheme={activeTheme} onToggleTheme={() => handleSetTheme(activeTheme === 'dark' ? 'light' : 'dark')} />
+      <div className="flex h-screen overflow-hidden bg-bg">
+        <Sidebar t={t} activePage={page} onNavigate={setPage} isNarrow={true} />
+
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <Topbar
+            t={t}
+            project={storeState.activeProject}
+            lang={lang}
+            onToggleLang={() => handleSetLang(lang === 'zh' ? 'en' : 'zh')}
+            health={health}
+          />
+
           {health && health.persistent === false && (
-            <div className="bg-danger/10 border-b border-danger/40 text-danger text-xs px-4 py-2 flex items-start gap-2">
-              {Icon ? <Icon name="info" className="w-3.5 h-3.5 mt-0.5 shrink-0" /> : null}
-              <span>{t.system && t.system.memoryBackend}</span>
+            <div className="bg-danger/10 border-b border-danger/40 text-danger text-[10px] px-4 py-1.5 flex items-center gap-2 shrink-0">
+              <Icon name="info" className="w-3 h-3 shrink-0" />
+              <span>{t.system?.memoryBackend || "Running with in-memory storage"}</span>
             </div>
           )}
-          <div className="flex-1 overflow-y-auto">
-            <ErrorBoundary>{renderPage()}</ErrorBoundary>
-          </div>
-        </main>
+
+          <ErrorBoundary>
+            {renderContent()}
+          </ErrorBoundary>
+        </div>
       </div>
     );
   }
