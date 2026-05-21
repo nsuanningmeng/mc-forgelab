@@ -33,21 +33,26 @@ function realpathExistingParent(abs: string): string {
 function assertSafePath(root: string, path: string): string {
   const abs = resolveInsideBase(root, path);
 
+  // Symlink containment: only check when root exists on disk.
+  // If root doesn't exist yet (project not created), there are no symlinks to escape.
+  if (!existsSync(root)) return abs;
+
   try {
     const realRoot = realpathSync(root);
 
     if (existsSync(abs)) {
       const real = realpathSync(abs);
       if (!isPathInsideRoot(realRoot, real)) {
-        throw new Error("Path escapes workspace root");
+        throw new AppError(ErrorCode.FILE_OP_PATH_UNSAFE, { details: { path, reason: "symlink escapes root" } });
       }
     }
 
     const realParent = realpathExistingParent(abs);
     if (!isPathInsideRoot(realRoot, realParent)) {
-      throw new Error("Parent directory escapes workspace root");
+      throw new AppError(ErrorCode.FILE_OP_PATH_UNSAFE, { details: { path, reason: "parent escapes root" } });
     }
-  } catch {
+  } catch (e) {
+    if (e instanceof AppError) throw e;
     throw new AppError(ErrorCode.FILE_OP_PATH_UNSAFE, { details: { path } });
   }
 

@@ -76,6 +76,34 @@ function patchApplyError(message: string): { applied: number; errors: string[] }
   return { applied: 0, errors: [message] };
 }
 
+interface LegacyFileEntry {
+  readonly path: string;
+  readonly content?: string;
+}
+
+interface LegacyPatchFormat {
+  readonly files?: readonly LegacyFileEntry[];
+}
+
+function isLegacyPatchFormat(raw: unknown): raw is LegacyPatchFormat {
+  return typeof raw === "object" && raw !== null && Array.isArray((raw as LegacyPatchFormat).files);
+}
+
+function normalizeToPatch(raw: unknown): unknown {
+  if (isLegacyPatchFormat(raw)) {
+    return {
+      type: "file_patch",
+      summary: "Generated patch",
+      operations: (raw.files ?? []).map((f) => ({
+        op: "create" as const,
+        path: f.path,
+        content: f.content ?? ""
+      }))
+    };
+  }
+  return raw;
+}
+
 function createWorkflowPatchApplier(): PatchApplier {
   const files = createFileOperationService();
   return {
@@ -91,7 +119,8 @@ function createWorkflowPatchApplier(): PatchApplier {
       if (options?.signal?.aborted) {
         return patchApplyError("Patch apply aborted.");
       }
-      const parsed = parseFilePatch(raw);
+      const normalized = normalizeToPatch(raw);
+      const parsed = parseFilePatch(normalized);
       return files.applyPatch(input.projectPath, parsed, options);
     }
   };
