@@ -79,7 +79,7 @@ window.MCFL = window.MCFL || {};
         </nav>
 
         <div className="p-4 border-t border-border/50">
-          <div className="text-xs font-mono text-mc">v0.3.10</div>
+          <div className="text-xs font-mono text-mc">v0.4.0</div>
         </div>
       </aside>
     );
