@@ -15,6 +15,7 @@ window.MCFL = window.MCFL || {};
         currentBuild: null,
         workflows: [],
         projects: [],
+        artifacts: [],
       };
       this.listeners = new Set();
       this._activeStream = null;
@@ -70,6 +71,12 @@ window.MCFL = window.MCFL || {};
           break;
         case 'SET_FILE_TREE':
           this.state.fileTree = payload;
+          break;
+        case 'SET_CURRENT_BUILD':
+          this.state.currentBuild = payload;
+          break;
+        case 'SET_ARTIFACTS':
+          this.state.artifacts = payload;
           break;
         default:
           console.warn('Unknown action:', action);
