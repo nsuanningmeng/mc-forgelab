@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, readdirSync, statSync, existsSync, realpathSync, lstatSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync, rmSync, renameSync, readdirSync, existsSync, realpathSync, lstatSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { AppError, ErrorCode } from "@mc-forgelab/app-error";
 import { resolveInsideBase, validatePatch, type FilePatch } from "./patch.js";
 
@@ -9,6 +9,49 @@ export interface FileOperationApplyPatchOptions {
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new Error("Operation aborted");
+}
+
+function isPathInsideRoot(root: string, target: string): boolean {
+  const rel = relative(root, target);
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+function realpathExistingParent(abs: string): string {
+  let current = dirname(abs);
+
+  while (!existsSync(current)) {
+    const parent = dirname(current);
+    if (parent === current) {
+      throw new Error("No existing parent directory");
+    }
+    current = parent;
+  }
+
+  return realpathSync(current);
+}
+
+function assertSafePath(root: string, path: string): string {
+  const abs = resolveInsideBase(root, path);
+
+  try {
+    const realRoot = realpathSync(root);
+
+    if (existsSync(abs)) {
+      const real = realpathSync(abs);
+      if (!isPathInsideRoot(realRoot, real)) {
+        throw new Error("Path escapes workspace root");
+      }
+    }
+
+    const realParent = realpathExistingParent(abs);
+    if (!isPathInsideRoot(realRoot, realParent)) {
+      throw new Error("Parent directory escapes workspace root");
+    }
+  } catch {
+    throw new AppError(ErrorCode.FILE_OP_PATH_UNSAFE, { details: { path } });
+  }
+
+  return abs;
 }
 
 export interface FileOperationService {
@@ -24,9 +67,7 @@ export interface FileOperationService {
 export function createFileOperationService(): FileOperationService {
   return {
     readFile(root, path) {
-      const abs = resolveInsideBase(root, path);
-      // Verify realpath stays inside root (symlink escape prevention)
-      try { const real = realpathSync(abs); if (relative(root, real).startsWith("..")) throw new Error(); } catch { throw new AppError(ErrorCode.FILE_OP_PATH_UNSAFE, { details: { path } }); }
+      const abs = assertSafePath(root, path);
       if (!existsSync(abs)) throw new AppError(ErrorCode.FILE_OP_NOT_FOUND, { details: { path } });
       return readFileSync(abs, "utf8");
     },
@@ -51,26 +92,26 @@ export function createFileOperationService(): FileOperationService {
     },
 
     createFile(root, path, content) {
-      const abs = resolveInsideBase(root, path);
+      const abs = assertSafePath(root, path);
       mkdirSync(dirname(abs), { recursive: true });
       writeFileSync(abs, content, "utf8");
     },
 
     updateFile(root, path, content) {
-      const abs = resolveInsideBase(root, path);
+      const abs = assertSafePath(root, path);
       if (!existsSync(abs)) throw new AppError(ErrorCode.FILE_OP_NOT_FOUND, { details: { path } });
       writeFileSync(abs, content, "utf8");
     },
 
     deleteFile(root, path) {
-      const abs = resolveInsideBase(root, path);
+      const abs = assertSafePath(root, path);
       if (!existsSync(abs)) throw new AppError(ErrorCode.FILE_OP_NOT_FOUND, { details: { path } });
       rmSync(abs, { recursive: true });
     },
 
     moveFile(root, path, newPath) {
-      const abs = resolveInsideBase(root, path);
-      const absNew = resolveInsideBase(root, newPath);
+      const abs = assertSafePath(root, path);
+      const absNew = assertSafePath(root, newPath);
       if (!existsSync(abs)) throw new AppError(ErrorCode.FILE_OP_NOT_FOUND, { details: { path } });
       mkdirSync(dirname(absNew), { recursive: true });
       renameSync(abs, absNew);
@@ -87,10 +128,10 @@ export function createFileOperationService(): FileOperationService {
       for (const op of patch.operations) {
         throwIfAborted(options.signal);
         try {
-          if (op.op === "create" || op.op === "update") {
-            const abs = resolveInsideBase(root, op.path);
-            mkdirSync(dirname(abs), { recursive: true });
-            writeFileSync(abs, op.content ?? "", "utf8");
+          if (op.op === "create") {
+            this.createFile(root, op.path, op.content ?? "");
+          } else if (op.op === "update") {
+            this.updateFile(root, op.path, op.content ?? "");
           } else if (op.op === "delete") {
             this.deleteFile(root, op.path);
           } else if (op.op === "move" && op.newPath) {
