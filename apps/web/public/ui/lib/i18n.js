@@ -1,8 +1,8 @@
-// i18n strings for MC-AI-ForgeLab workbench (zh / en)
+// i18n strings for ForgeLab workbench (zh / en)
 window.MCFL = window.MCFL || {};
 window.MCFL.LANGS = {
   zh: {
-    appName: "MC-AI-ForgeLab",
+    appName: "ForgeLab",
     appTagline: "Minecraft AI 开发工作台",
     earlyDev: "早期开发",
     planned: "规划中",
@@ -334,7 +334,7 @@ window.MCFL.LANGS = {
   },
 
   en: {
-    appName: "MC-AI-ForgeLab",
+    appName: "ForgeLab",
     appTagline: "Minecraft AI Development Workbench",
     earlyDev: "Early development",
     planned: "Planned",
