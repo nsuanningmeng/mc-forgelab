@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { AppError } from "@mc-forgelab/app-error";
 import type { ProviderManager } from "@mc-forgelab/ai-provider-manager";
 import type { Storage } from "@mc-forgelab/storage";
@@ -529,7 +529,7 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         }
 
         const fixerInputs: Record<string, string> = {
-          errorAnalysis: analyzer.text,
+          errorAnalysis: truncateForAutoFixInput(analyzer.text, maxInputChars),
           buildResult: buildResultText,
           buildLog: buildLogText,
           projectPlan: truncateForAutoFixInput(workflowContext.projectPlan ?? "", maxInputChars),
