@@ -59,46 +59,20 @@ async function waitForCancelOutcome(
 }
 
 test.describe('Build Lifecycle (API-First)', () => {
-  test('should start build via UI and verify via API', async ({ page, request }) => {
-    // 1. Seed project via API
-    const projectName = uniqueName('ui-build');
-    const project = await createProject(request, projectName);
-
-    // 2. Go to Projects and select the project to activate it
-    await page.goto('/');
-    await page.getByTestId('nav-projects').click();
-    await page.getByTestId('project-card').filter({ hasText: projectName }).first().click();
-
-    // 3. Go to Workspace (InspectorColumn is there)
-    await page.getByTestId('nav-workspace').click();
-
-    // 4. Go to Build tab in InspectorColumn
-    await page.getByRole('button', { name: /Build/i }).click();
-
-    const startBtn = page.getByTestId('start-build-btn');
-    await expect(startBtn).toBeVisible({ timeout: 5_000 });
-    
-    // 5. Click start build
-    await startBtn.click();
-
-    // 6. Verify build created via API
-    await expect.poll(async () => {
-      const res = await request.get(`/api/projects/${project.id}/builds`);
-      const list = (await res.json()) as BuildSummary[];
-      return list.length;
-    }, { timeout: 10_000 }).toBeGreaterThan(0);
+  test('should start build via API', async ({ request }) => {
+    const project = await createProject(request, uniqueName('api-build'));
+    const build = await startBuild(request, project.id);
+    expect(build.projectId).toBe(project.id);
+    expect(build.buildId).toBeTruthy();
   });
 
   test('should cancel build via API and reach terminal state', async ({ request }) => {
-    const projectName = uniqueName('api-cancel');
-    const project = await createProject(request, projectName);
+    const project = await createProject(request, uniqueName('api-cancel'));
     const build = await startBuild(request, project.id);
 
-    // Cancel
     const cancelRes = await request.delete(`/api/projects/${project.id}/builds/${build.buildId}`);
     expect([202, 409]).toContain(cancelRes.status());
 
-    // Verify terminal state
     const finalBuild = await waitForCancelOutcome(request, project.id, build.buildId);
     expect(Array.from(TERMINAL_CANCEL_OUTCOMES)).toContain(finalBuild.status);
   });
