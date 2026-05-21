@@ -127,6 +127,12 @@ window.MCFL.LANGS = {
       tokens: "Token",
       duration: "耗时",
       previewSelectHint: "从左侧文件树选择一个文件以预览内容",
+      building: "构建中...",
+      startBuild: "开始构建",
+      noBuildLogs: "暂无日志",
+      noArtifacts: "暂无产物",
+      noProject: "未选择项目",
+      noProjectHint: "选择或创建项目开始编码",
     },
 
     proj: {
@@ -459,6 +465,12 @@ window.MCFL.LANGS = {
       tokens: "Tokens",
       duration: "Duration",
       previewSelectHint: "Select a file from the tree to preview its content",
+      building: "Building...",
+      startBuild: "Start Build",
+      noBuildLogs: "No logs available",
+      noArtifacts: "No artifacts built yet",
+      noProject: "No Project Selected",
+      noProjectHint: "Select or create a project",
     },
 
     proj: {

@@ -4,7 +4,7 @@ window.MCFL = window.MCFL || {};
   const {
     theme, LANGS, ErrorBoundary, Sidebar, Topbar,
     Store, ChatColumn, InspectorColumn,
-    Dashboard, Projects, Builds, Artifacts, Toolchains, Settings, Knowledge, Icon
+    Artifacts, Toolchains, Settings, Knowledge, ProjectDetail, Icon
   } = window.MCFL;
 
   function App() {
@@ -49,14 +49,17 @@ window.MCFL = window.MCFL || {};
       }
 
       switch (page) {
-        case 'dashboard': return <div className="flex-1 overflow-y-auto"><Dashboard {...props} onSelectProject={(p) => { Store.dispatch('SET_PROJECT', p); setPage('workspace'); }} /></div>;
-        case 'projects': return <div className="flex-1 overflow-y-auto"><Projects {...props} onSelectProject={(p) => { Store.dispatch('SET_PROJECT', p); setPage('workspace'); }} /></div>;
-        case 'builds': return <div className="flex-1 overflow-y-auto"><Builds {...props} /></div>;
         case 'artifacts': return <div className="flex-1 overflow-y-auto"><Artifacts {...props} /></div>;
         case 'knowledge': return <div className="flex-1 overflow-y-auto"><Knowledge {...props} /></div>;
         case 'toolchains': return <div className="flex-1 overflow-y-auto"><Toolchains {...props} /></div>;
         case 'settings': return <div className="flex-1 overflow-y-auto"><Settings {...props} onSetTheme={handleSetTheme} /></div>;
-        default: return <div className="flex-1 overflow-y-auto"><Dashboard {...props} /></div>;
+        case 'project-detail': return <div className="flex-1 overflow-y-auto"><ProjectDetail {...props} /></div>;
+        default: return (
+          <div className="flex-1 flex overflow-hidden">
+            <ChatColumn t={t} />
+            <InspectorColumn t={t} />
+          </div>
+        );
       }
     };
 
