@@ -7,26 +7,20 @@ test.describe('File Preview', () => {
     await page.getByTestId('nav-workspace').click();
     await page.waitForTimeout(3000);
 
-    // Verify workspace has a prompt textarea
     const textarea = page.locator('textarea').first();
     await expect(textarea).toBeVisible({ timeout: 10000 });
   });
 
-  test('should query project files via API', async ({ page }) => {
-    // Create project via API
-    const resp = await page.evaluate(async () => {
-      const r = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'FilePrevTest', slug: 'fileprev-test', type: 'plugin',
-          targetId: 'paper', minecraftVersion: '1.20.1', javaVersion: 17,
-          buildTool: 'gradle', packageName: 'com.fileprev.test', version: '1.0.0'
-        })
-      });
-      return { status: r.status, ok: r.ok, data: await r.json() };
+  test('should create project and query files via API', async ({ request }) => {
+    const resp = await request.post('/api/projects', {
+      data: {
+        name: 'FilePrevTest', slug: 'fileprev-test', type: 'plugin',
+        targetId: 'paper', minecraftVersion: '1.20.1', javaVersion: 17,
+        buildTool: 'gradle', packageName: 'com.fileprev.test', version: '1.0.0'
+      }
     });
-    expect(resp.ok).toBe(true);
-    expect(resp.data.id).toBeTruthy();
+    expect(resp.ok()).toBe(true);
+    const data = await resp.json();
+    expect(data.id).toBeTruthy();
   });
 });
