@@ -1,13 +1,23 @@
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "./types.js";
 import { randomUUID } from "node:crypto";
+import { AppError } from "@mc-forgelab/app-error";
+import { resolveContainedProjectPath } from "@mc-forgelab/ai-workflow-engine";
+import { createFileOperationService } from "@mc-forgelab/file-operation";
 import { createDefaultRegistry } from "@mc-forgelab/target-registry";
 
 const MC_VERSION_RE = /^\d+\.\d+(\.\d+)?$/;
 const PKG_RE = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/;
+const MAX_FILE_PATH_LENGTH = 2048;
+
+interface ProjectFileRow {
+  readonly id: string;
+  readonly project_path: string | null;
+}
 
 export async function registerProjectRoutes(app: FastifyInstance, ctx: AppContext) {
   const targetRegistry = createDefaultRegistry();
+  const files = createFileOperationService();
   // Derive valid target IDs from the registry so /api/projects accepts
   // every target that /api/targets exposes (previously hard-coded set
   // dropped bukkit/mohist/waterfall, which the UI happily offered then
@@ -46,6 +56,34 @@ export async function registerProjectRoutes(app: FastifyInstance, ctx: AppContex
             experimental: false
           }
     };
+  });
+
+  app.get<{ Params: { id: string; "*": string } }>("/api/projects/:id/files/*", async (req, reply) => {
+    const filePath = req.params["*"];
+    if (typeof filePath !== "string" || filePath.trim().length === 0 || filePath.length > MAX_FILE_PATH_LENGTH) {
+      return reply.status(400).send({ error: `path is required (1-${MAX_FILE_PATH_LENGTH} chars)` });
+    }
+
+    const project = ctx.storage.backend.get<ProjectFileRow>(
+      "SELECT id, project_path FROM projects WHERE id = ?",
+      [req.params.id]
+    );
+    if (!project) return reply.status(404).send({ error: "Project not found" });
+
+    try {
+      const projectPath = resolveContainedProjectPath(ctx.cfg.paths.workspace, req.params.id, project.project_path);
+      const content = files.readFile(projectPath, filePath);
+      return {
+        path: filePath,
+        content,
+        contentType: "text/plain; charset=utf-8"
+      };
+    } catch (e) {
+      if (e instanceof AppError) throw e;
+      return reply.status(400).send({
+        error: e instanceof Error ? e.message : String(e)
+      });
+    }
   });
 
   app.post<{ Body: { name?: string; targetId?: string; minecraftVersion?: string; packageName?: string } }>(

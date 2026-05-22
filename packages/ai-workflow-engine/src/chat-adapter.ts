@@ -17,6 +17,7 @@ export interface ChatAdapterResult {
 export interface ChatAdapterInvokeOptions {
   readonly onDelta?: (chunk: string) => void;
   readonly signal?: AbortSignal;
+  readonly contextMessages?: readonly ChatMessage[];
 }
 
 export interface ChatAdapter {
@@ -42,12 +43,20 @@ function buildMessages(
   role: StepRole,
   prompt: string,
   context: Record<string, string>,
-  systemPrompt: string | null
+  systemPrompt: string | null,
+  contextMessages: readonly ChatMessage[] = []
 ): readonly ChatMessage[] {
   const messages: ChatMessage[] = [];
   const system = systemPrompt?.trim();
   if (system) {
     messages.push({ role: "system", content: system });
+  }
+
+  for (const message of contextMessages) {
+    const content = message.content.trim();
+    if (message.role === "system" && content.length > 0) {
+      messages.push({ role: "system", content });
+    }
   }
 
   const body = prompt.trim().length > 0 ? prompt : contextToPrompt(context);
@@ -91,7 +100,7 @@ export function createRealChatAdapter(adapter: ProviderAdapter, profile: ModelPr
   return {
     async invoke(role, prompt, context, opts = {}) {
       throwIfAborted(opts.signal);
-      const messages = buildMessages(role, prompt, context, profile.systemPrompt);
+      const messages = buildMessages(role, prompt, context, profile.systemPrompt, opts.contextMessages);
       const chatOptions: ChatOptions = {
         messages,
         model: profile.model,

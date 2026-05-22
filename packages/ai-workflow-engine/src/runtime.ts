@@ -42,6 +42,11 @@ export type RuntimeEvent =
   | { type: "run_finished"; runId: string; status: RuntimeRunStatus; summary?: string; errorMessage?: string }
   | { type: "heartbeat"; runId: string };
 
+export interface WorkflowContextMessage {
+  readonly role: "system";
+  readonly content: string;
+}
+
 export interface StartRunInput {
   workflowId: string;
   userPrompt: string;
@@ -52,6 +57,7 @@ export interface StartRunInput {
   triggerType?: "manual" | "auto-fix";
   parentRunId?: string;
   retryOfRunId?: string;
+  contextMessages?: readonly WorkflowContextMessage[];
 }
 
 export interface WorkflowRuntime {
@@ -466,7 +472,8 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
     inputs: Record<string, string>,
     runProviderId: string | null,
     runModel: string | null,
-    toolContext: ToolExecutionContext
+    toolContext: ToolExecutionContext,
+    contextMessages: readonly WorkflowContextMessage[] = []
   ): Promise<ChatAdapterResult> {
     const virtualStep = makeVirtualModelStep(baseStep, role);
     const resolved = resolveChatAdapter(virtualStep, runProviderId, runModel);
@@ -475,7 +482,10 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         ? `Auto-fix invoking fake provider for ${role}.`
         : `Auto-fix invoking provider ${resolved.providerId} model ${resolved.model} for ${role}.`
     );
-    return resolved.adapter.invoke(role, promptFromInputs(inputs), inputs, { signal: toolContext.signal });
+    return resolved.adapter.invoke(role, promptFromInputs(inputs), inputs, {
+      signal: toolContext.signal,
+      contextMessages
+    });
   }
 
   async function executeAutoFixLoop(
@@ -483,7 +493,8 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
     workflowContext: WorkflowContextSnapshot,
     runProviderId: string | null,
     runModel: string | null,
-    toolContext: ToolExecutionContext
+    toolContext: ToolExecutionContext,
+    contextMessages: readonly WorkflowContextMessage[] = []
   ): Promise<{ status: StepRuntimeStatus; outputSummary: string; tokensIn: number; tokensOut: number }> {
     const condition = evaluateAutoFixCondition(step.condition, workflowContext);
     if (condition === "unsupported") {
@@ -521,7 +532,7 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         if (previousPatchFailureText) {
           analyzerInputs.previousPatchFailure = previousPatchFailureText;
         }
-        const analyzer = await invokeAutoFixModel(step, "build_error_analyzer", analyzerInputs, runProviderId, runModel, toolContext);
+        const analyzer = await invokeAutoFixModel(step, "build_error_analyzer", analyzerInputs, runProviderId, runModel, toolContext, contextMessages);
         tokensIn += analyzer.tokensIn;
         tokensOut += analyzer.tokensOut;
         if (tokenTotal(tokensIn, tokensOut) > maxTokens) {
@@ -538,7 +549,7 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         if (previousPatchFailureText) {
           fixerInputs.previousPatchFailure = previousPatchFailureText;
         }
-        const fixer = await invokeAutoFixModel(step, "auto_fixer", fixerInputs, runProviderId, runModel, toolContext);
+        const fixer = await invokeAutoFixModel(step, "auto_fixer", fixerInputs, runProviderId, runModel, toolContext, contextMessages);
         tokensIn += fixer.tokensIn;
         tokensOut += fixer.tokensOut;
         if (tokenTotal(tokensIn, tokensOut) > maxTokens) {
@@ -617,7 +628,7 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
     };
   }
 
-  async function executeStep(runId: string, step: WorkflowStepDef, sequence: number, context: WorkflowContextSnapshot, runProviderId: string | null, runModel: string | null, signal: AbortSignal): Promise<void> {
+  async function executeStep(runId: string, step: WorkflowStepDef, sequence: number, context: WorkflowContextSnapshot, runProviderId: string | null, runModel: string | null, signal: AbortSignal, contextMessages: readonly WorkflowContextMessage[] = []): Promise<void> {
     const started = Date.now();
     const stepRecord = deps.engine.createStep(runId, step.id, step.role, step.modelProfile);
     deps.storage.backend.run("UPDATE ai_workflow_steps SET sequence=? WHERE id=?", [sequence, stepRecord.id]);
@@ -752,7 +763,7 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
     emit({ type: "step_finished", runId, stepRowId: stepRecord.id, stepId: step.id, status: "success", outputSummary, tokensIn, tokensOut, durationMs });
   }
 
-  async function executeRun(runId: string, workflow: WorkflowDefinition, fromStepId?: string): Promise<void> {
+  async function executeRun(runId: string, workflow: WorkflowDefinition, fromStepId?: string, contextMessages: readonly WorkflowContextMessage[] = []): Promise<void> {
     // Guard against a race where cancelRun fired between startRun()
     // emitting and the setImmediate callback firing. If the run is
     // already terminal (canceled / failed), bail out cleanly so we
@@ -781,7 +792,7 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i]!;
         try {
-          await executeStep(runId, step, startIndex + i + 1, context, run.selectedProviderId, run.selectedModel, signal);
+          await executeStep(runId, step, startIndex + i + 1, context, run.selectedProviderId, run.selectedModel, signal, contextMessages);
         } catch (error) {
           if (!step.required) {
             continue;
@@ -822,7 +833,7 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
       getOrCreateRunning(run.id);
       emit({ type: "run_started", runId: run.id, workflowId: input.workflowId });
       nextTick(() => {
-        void executeRun(run.id, workflow);
+        void executeRun(run.id, workflow, undefined, input.contextMessages ?? []);
       });
       return { runId: run.id };
     },

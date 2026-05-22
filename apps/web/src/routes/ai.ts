@@ -267,6 +267,43 @@ function profileUpdatePayload(input: NormalizedProfileInput) {
   };
 }
 
+const MAX_HISTORY_CONTEXT_RUNS = 5;
+const MAX_HISTORY_SUMMARY_CHARS = 2000;
+
+interface WorkflowHistoryRun {
+  readonly id: string;
+  readonly started_at: string;
+  readonly finished_at: string | null;
+  readonly summary: string | null;
+}
+
+function truncateHistorySummary(summary: string): string {
+  if (summary.length <= MAX_HISTORY_SUMMARY_CHARS) return summary;
+  return `${summary.slice(0, MAX_HISTORY_SUMMARY_CHARS)}\n[truncated]`;
+}
+
+function buildWorkflowHistoryContext(ctx: AppContext, projectId: string | undefined) {
+  if (!projectId) return [];
+
+  const rows = ctx.storage.backend.all<WorkflowHistoryRun>(
+    `SELECT id, started_at, finished_at, summary
+     FROM ai_workflow_runs
+     WHERE project_id = ?
+       AND status = 'success'
+       AND summary IS NOT NULL
+       AND length(trim(summary)) > 0
+     ORDER BY COALESCE(finished_at, started_at) DESC
+     LIMIT ?`,
+    [projectId, MAX_HISTORY_CONTEXT_RUNS]
+  );
+  if (rows.length === 0) return [];
+
+  const content = rows.map((row, index) =>
+    `#${index + 1} run=${row.id} finished=${row.finished_at ?? row.started_at}\n${truncateHistorySummary((row.summary ?? "").trim())}`
+  ).join("\n\n");
+  return [{ role: "system" as const, content: `Previous successful workflow summaries for this project, newest first. Use them only as background context; the current user request has priority.\n\n${content}` }];
+}
+
 function runSnapshot(ctx: AppContext, runId: string) {
   const run = ctx.storage.backend.get<Record<string, unknown>>("SELECT * FROM ai_workflow_runs WHERE id = ?", [runId]);
   if (!run) return null;
@@ -458,7 +495,8 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
         providerId: body.providerId,
         model: body.model,
         patchReviewEnabled: body.settings?.patchReview === true,
-        triggerType: "manual"
+        triggerType: "manual",
+        contextMessages: buildWorkflowHistoryContext(ctx, body.projectId)
       });
       return reply.status(202).send(result);
     }
