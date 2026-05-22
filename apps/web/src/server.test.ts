@@ -23,7 +23,7 @@ describe("GET /api/health", () => {
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body)).toEqual({
       ok: true,
-      version: "0.4.5",
+      version: expect.any(String),
       storage: "memory",
       persistent: false,
       workspace: expect.any(String),

@@ -78,13 +78,22 @@ window.MCFL = window.MCFL || {};
     const [rotatingProvider, setRotatingProvider] = useState(null);
     const [newApiKey, setNewApiKey] = useState('');
     const [testResult, setTestResult] = useState(null);
-    const [healthInfo, setHealthInfo] = useState(null);
+    const [workspaceSettings, setWorkspaceSettings] = useState(null);
+    const [editingWorkspace, setEditingWorkspace] = useState(false);
+    const [wsDraft, setWsDraft] = useState({ workspacePath: '', maxArtifactStorageBytes: '', artifactRetentionDays: '' });
 
     const reload = useCallback(() => {
       setError(null);
       api.providers().then(setProviders).catch(() => setProviders([]));
       api.modelProfiles().then(setProfiles).catch(() => setProfiles([]));
-      fetch('/api/health').then(r => r.json()).then(setHealthInfo).catch(() => setHealthInfo(null));
+      fetch('/api/settings/workspace').then(r => r.json()).then(data => {
+        setWorkspaceSettings(data);
+        setWsDraft({
+          workspacePath: data.workspacePath || '',
+          maxArtifactStorageBytes: String(Math.round((data.maxArtifactStorageBytes || 0) / (1024 * 1024 * 1024))),
+          artifactRetentionDays: String(data.artifactRetentionDays || 30),
+        });
+      }).catch(() => setWorkspaceSettings(null));
     }, []);
 
     useEffect(reload, [reload]);
@@ -141,6 +150,46 @@ window.MCFL = window.MCFL || {};
         setRotatingProvider(null);
         setNewApiKey('');
         reload();
+      } catch (err) {
+        setError(err.message || String(err));
+      } finally {
+        setBusy(null);
+      }
+    };
+
+    const handleSaveWorkspace = async () => {
+      const bytes = Number(wsDraft.maxArtifactStorageBytes) * 1024 * 1024 * 1024;
+      const days = Number(wsDraft.artifactRetentionDays);
+      if (!wsDraft.workspacePath.trim()) {
+        setError("Workspace path cannot be empty");
+        return;
+      }
+      if (!Number.isFinite(bytes) || bytes < 0) {
+        setError("Storage quota must be a non-negative number (GB)");
+        return;
+      }
+      if (!Number.isFinite(days) || days < 1) {
+        setError("Retention days must be at least 1");
+        return;
+      }
+      setBusy('workspace');
+      try {
+        const res = await fetch('/api/settings/workspace', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workspacePath: wsDraft.workspacePath.trim(),
+            maxArtifactStorageBytes: bytes,
+            artifactRetentionDays: days,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Failed to save');
+        }
+        const data = await res.json();
+        setWorkspaceSettings(data);
+        setEditingWorkspace(false);
       } catch (err) {
         setError(err.message || String(err));
       } finally {
@@ -229,26 +278,71 @@ window.MCFL = window.MCFL || {};
             </div>
           </Section>
 
-          <Section title={t.settings.groups.workspace} description={desc.workspace} badge={<StatusBadge variant="success" label={t.common.status || "active"} />}>
-            {healthInfo === null ? (
+          <Section title={t.settings.groups.workspace} description={desc.workspace} badge={<StatusBadge variant="success" label={t.common.status || "active"} />} data-testid="workspace-section">
+            {workspaceSettings === null ? (
               <span className="text-tx3">{t.settings.workspace?.loading || "Loading…"}</span>
+            ) : editingWorkspace ? (
+              <div className="flex flex-col gap-3">
+                <div>
+                  <label className="text-xs text-tx3 mb-1 block">{t.settings.workspace?.defaultPath || "Default Path"}</label>
+                  <input
+                    type="text"
+                    value={wsDraft.workspacePath}
+                    onChange={(e) => setWsDraft({ ...wsDraft, workspacePath: e.target.value })}
+                    className={cx.j(cx.input, "w-full")}
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="text-xs text-tx3 mb-1 block">{t.settings.workspace?.quota || "Storage Quota"} (GB)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={wsDraft.maxArtifactStorageBytes}
+                      onChange={(e) => setWsDraft({ ...wsDraft, maxArtifactStorageBytes: e.target.value })}
+                      className={cx.j(cx.input, "w-full")}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-tx3 mb-1 block">{t.settings.workspace?.retention || "Artifact Retention"} (days)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={wsDraft.artifactRetentionDays}
+                      onChange={(e) => setWsDraft({ ...wsDraft, artifactRetentionDays: e.target.value })}
+                      className={cx.j(cx.input, "w-full")}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setEditingWorkspace(false)} className={cx.btnGhost}>{t.common?.cancel || "Cancel"}</button>
+                  <button onClick={handleSaveWorkspace} disabled={busy === 'workspace'} className={cx.btnPrimary}>
+                    {busy === 'workspace' ? (t.common?.saving || "Saving...") : (t.common?.save || "Save")}
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="flex flex-col gap-2">
                 <div className="flex justify-between">
                   <span>{t.settings.workspace?.defaultPath || "Default Path"}</span>
-                  <span className={cx.mono}>{healthInfo.workspace || "—"}</span>
+                  <span className={cx.mono}>{workspaceSettings.workspacePath || "—"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>{t.settings.workspace?.quota || "Storage Quota"}</span>
-                  <span>{healthInfo.limits?.maxArtifactStorageBytes
-                    ? `${(healthInfo.limits.maxArtifactStorageBytes / (1024 * 1024 * 1024)).toFixed(0)} GB`
+                  <span>{workspaceSettings.maxArtifactStorageBytes
+                    ? `${(workspaceSettings.maxArtifactStorageBytes / (1024 * 1024 * 1024)).toFixed(0)} GB`
                     : "—"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>{t.settings.workspace?.retention || "Artifact Retention"}</span>
-                  <span>{healthInfo.limits?.artifactRetentionDays
-                    ? `${healthInfo.limits.artifactRetentionDays} days`
+                  <span>{workspaceSettings.artifactRetentionDays
+                    ? `${workspaceSettings.artifactRetentionDays} days`
                     : "—"}</span>
+                </div>
+                <div className="flex justify-end mt-1">
+                  <button onClick={() => setEditingWorkspace(true)} className={cx.btnSecondary}>
+                    {t.common?.edit || "Edit"}
+                  </button>
                 </div>
               </div>
             )}

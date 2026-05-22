@@ -21,6 +21,7 @@ import { registerBuildRoutes } from "./routes/builds.js";
 import { registerTargetRoutes } from "./routes/targets.js";
 import { registerKnowledgeRoutes } from "./routes/knowledge.js";
 import { registerAuditRoutes } from "./routes/audit.js";
+import { registerSettingsRoutes, getWorkspaceSettings } from "./routes/settings.js";
 import { createBuildRegistry } from "./lib/build-registry.js";
 import { createAuditLogger, STAGE_WEB_MIGRATIONS } from "./lib/audit.js";
 
@@ -242,14 +243,22 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   await registerTargetRoutes(app);
   await registerKnowledgeRoutes(app);
   await registerAuditRoutes(app, ctx);
-  app.get("/api/health", async () => ({
-    ok: true,
-    version: APP_VERSION,
-    storage: storage.backend.name,
-    persistent: storage.backend.name === "sqlite",
-    workspace: cfg.paths.workspace,
-    limits: cfg.limits,
-  }));
+  await registerSettingsRoutes(app, ctx);
+  app.get("/api/health", async () => {
+    const ws = getWorkspaceSettings(ctx);
+    return {
+      ok: true,
+      version: APP_VERSION,
+      storage: storage.backend.name,
+      persistent: storage.backend.name === "sqlite",
+      workspace: ws.workspacePath,
+      limits: {
+        ...cfg.limits,
+        maxArtifactStorageBytes: ws.maxArtifactStorageBytes,
+        artifactRetentionDays: ws.artifactRetentionDays,
+      },
+    };
+  });
 
   app.addHook("onClose", async () => {
     workflowRuntime.closeAll();
