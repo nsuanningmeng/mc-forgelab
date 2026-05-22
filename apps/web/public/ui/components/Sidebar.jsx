@@ -12,9 +12,7 @@ window.MCFL = window.MCFL || {};
     if (isNarrow) {
       return (
         <aside className="w-16 bg-surface border-r border-border flex flex-col items-center py-4 shrink-0 h-full">
-          <div className="w-8 h-8 bg-mc rounded-lg flex items-center justify-center mb-8 shadow-lg shadow-mc/20">
-            <div className="w-4 h-4 border-2 border-surface rotate-45" />
-          </div>
+          <img src="assets/icon.png" alt="ForgeLab" className="w-8 h-8 rounded-lg mb-8 shadow-lg shadow-mc/20" />
 
           <nav className="flex-1 flex flex-col gap-4">
             {items.map((item) => (

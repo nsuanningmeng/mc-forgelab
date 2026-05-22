@@ -85,7 +85,7 @@
         "dmg",
         "zip"
       ],
-      "icon": "assets/icon.icns"
+      "icon": "assets/icon.png"
     },
     "linux": {
       "target": [
