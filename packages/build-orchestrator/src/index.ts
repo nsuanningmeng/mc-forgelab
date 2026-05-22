@@ -7,6 +7,9 @@ import { resolveJavaWithAutoDownload, resolveGradleWrapper, bootstrapGradleWrapp
 
 export type BuildStatus = "queued" | "running" | "success" | "failed" | "canceled";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SAFE_BUILD_ID_RE = /^[A-Za-z0-9._-]+$/;
+
 export interface BuildRecord {
   readonly buildId: string;
   readonly projectId: string;
@@ -47,16 +50,29 @@ async function resolveMavenBuildTool(projectPath: string, onLog: (line: string) 
   }
 }
 
+function validateBuildId(buildId: string): string {
+  if (
+    buildId.length === 0 ||
+    buildId.includes("..") ||
+    buildId.includes("/") ||
+    buildId.includes("\\") ||
+    (!UUID_RE.test(buildId) && !SAFE_BUILD_ID_RE.test(buildId))
+  ) {
+    throw new Error("buildId must be a UUID or a safe file name containing only letters, numbers, dots, underscores, and hyphens");
+  }
+  return buildId;
+}
+
 /** Execute a build in the project directory. Supports Gradle and Maven via buildTool option. */
 export async function runBuild(
   projectId: string,
   opts: BuildOptions,
   onLog: (line: string) => void = () => {}
 ): Promise<BuildRecord> {
-  const buildId = opts.buildId ?? randomUUID();
+  const buildId = validateBuildId(opts.buildId ?? randomUUID());
   const startedAt = new Date().toISOString();
   const logsDir = opts.logsDir ?? join(opts.workspaceRoot, "logs");
-  const logPath = join(logsDir, `${buildId}.log`);
+  const logPath = resolveInsideBase(logsDir, `${buildId}.log`);
   mkdirSync(logsDir, { recursive: true });
 
   // Validate project path is inside workspace

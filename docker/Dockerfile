@@ -24,7 +24,7 @@ RUN mkdir -p /data/workspace /data/cache /data/logs /data/db /opt/mc-forgelab/to
     && chown -R mcfl:mcfl /data /opt/mc-forgelab
 USER mcfl
 EXPOSE 3000
-ENV MC_FORGELAB_MODE=web \
+ENV MC_FORGELAB_MODE=docker \
     MC_FORGELAB_HOST=0.0.0.0 \
     MC_FORGELAB_PORT=3000 \
     MC_FORGELAB_WORKSPACE=/data/workspace \

@@ -54,4 +54,24 @@ describe("runBuild", () => {
       }
     }
   });
+
+  it.each(["../escape", "..\\escape", "logs/escape", "logs\\escape", "safe..escape", "bad id"])(
+    "rejects unsafe buildId %s",
+    async (buildId) => {
+      const workspaceRoot = mkdtempSync(join(tmpdir(), "mcfl-build-"));
+      const projectPath = join(workspaceRoot, "project");
+      mkdirSync(projectPath);
+
+      try {
+        await expect(runBuild("project-1", {
+          buildId,
+          workspaceRoot,
+          projectPath,
+          logsDir: join(workspaceRoot, "logs"),
+        })).rejects.toThrow(/buildId/);
+      } finally {
+        rmSync(workspaceRoot, { recursive: true, force: true });
+      }
+    }
+  );
 });

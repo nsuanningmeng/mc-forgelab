@@ -1,5 +1,10 @@
 import type { FastifyInstance } from "fastify";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import type { AppContext } from "./types.js";
+
+const ENCRYPTION_KEY_ENV = "MC_FORGELAB_ENCRYPTION_KEY";
+const ENCRYPTION_PREFIX = "enc:v1:";
+const TEMP_ENCRYPTION_KEY = randomBytes(32);
 
 const SETTING_KEYS = {
   http: "proxy.http",
@@ -43,6 +48,40 @@ function hasOwn(body: ProxySettingsPatch, key: keyof ProxySettings): boolean {
   return Object.prototype.hasOwnProperty.call(body, key);
 }
 
+function getEncryptionKey(): Buffer {
+  const raw = process.env[ENCRYPTION_KEY_ENV]?.trim();
+  if (!raw) return TEMP_ENCRYPTION_KEY;
+  if (/^[0-9a-f]{64}$/i.test(raw)) return Buffer.from(raw, "hex");
+  return createHash("sha256").update(raw, "utf8").digest();
+}
+
+function encryptPassword(password: string | undefined): string | undefined {
+  if (password === undefined || password === "") return password;
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", getEncryptionKey(), iv);
+  const ciphertext = Buffer.concat([cipher.update(password, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${ENCRYPTION_PREFIX}${iv.toString("base64url")}:${tag.toString("base64url")}:${ciphertext.toString("base64url")}`;
+}
+
+function decryptPassword(value: string): string | undefined {
+  if (!value.startsWith(ENCRYPTION_PREFIX)) return value;
+
+  const [, , ivRaw, tagRaw, ciphertextRaw] = value.split(":");
+  if (!ivRaw || !tagRaw || !ciphertextRaw) return undefined;
+
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", getEncryptionKey(), Buffer.from(ivRaw, "base64url"));
+    decipher.setAuthTag(Buffer.from(tagRaw, "base64url"));
+    return Buffer.concat([
+      decipher.update(Buffer.from(ciphertextRaw, "base64url")),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    return undefined;
+  }
+}
+
 function parseStoredObject(value: string | undefined): Record<string, unknown> {
   if (!value) return {};
   try {
@@ -63,7 +102,7 @@ function readEndpoint(value: string | undefined): StoredProxyEndpoint {
 function readAuth(value: string | undefined): StoredProxyAuth {
   const parsed = parseStoredObject(value);
   const username = typeof parsed.username === "string" ? parsed.username : undefined;
-  const password = typeof parsed.password === "string" ? parsed.password : undefined;
+  const password = typeof parsed.password === "string" ? decryptPassword(parsed.password) : undefined;
   return { username, password };
 }
 
@@ -160,7 +199,7 @@ export async function registerProxyRoutes(app: FastifyInstance, ctx: AppContext)
     if (hasOwn(body, "username") || hasOwn(body, "password")) {
       upsertSetting(ctx, SETTING_KEYS.auth, JSON.stringify({
         username: hasOwn(body, "username") ? (body.username as string).trim() : currentAuth.username,
-        password: hasOwn(body, "password") ? body.password as string : currentAuth.password,
+        password: encryptPassword(hasOwn(body, "password") ? body.password as string : currentAuth.password),
       }), currentAuthRaw, updatedKeys, createdKeys);
     }
 

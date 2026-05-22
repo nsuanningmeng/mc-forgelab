@@ -1,4 +1,6 @@
 import { get as httpsGet } from "node:https";
+import { spawnSync } from "node:child_process";
+import { platform as osPlatform } from "node:os";
 import type { Command } from "commander";
 import { Command as CmdCtor } from "commander";
 import Table from "cli-table3";
@@ -17,6 +19,19 @@ interface CheckLine {
 }
 
 type NetworkStatus = "ok" | "warn" | "miss";
+
+interface DockerStatus {
+  readonly installed: boolean;
+  readonly version: string | null;
+  readonly composeVersion: string | null;
+  readonly path?: string;
+  readonly issues: ReadonlyArray<string>;
+}
+
+interface ExecResult {
+  readonly command: string;
+  readonly output: string;
+}
 
 interface NetworkCheck {
   readonly url: string;
@@ -125,7 +140,8 @@ async function collectChecks(ctx: ProgramContext): Promise<CheckLine[]> {
   lines.push({ name: "network", status: networkSummaryStatus(networkChecks), detail: networkSummaryDetail(networkChecks) });
 
   lines.push({ name: "Node runtime", status: "ok", detail: process.versions.node });
-  lines.push({ name: "Docker", status: "info", detail: "integrated at stage 7" });
+  const docker = checkDocker();
+  lines.push({ name: "Docker", status: dockerCheckStatus(docker), detail: dockerDetail(docker) });
 
   const registry = createDefaultRegistry();
   const engine = new CompatibilityEngine(registry, builtinRules);
@@ -141,6 +157,62 @@ async function collectChecks(ctx: ProgramContext): Promise<CheckLine[]> {
   });
 
   return lines;
+}
+
+function outputToString(output: string | Buffer | null | undefined): string {
+  if (typeof output === "string") return output;
+  return output?.toString("utf8") ?? "";
+}
+
+function needsShell(command: string): boolean {
+  return osPlatform() === "win32" && /\.(?:bat|cmd)$/i.test(command);
+}
+
+function tryExec(command: string, args: string[]): ExecResult | null {
+  const result = spawnSync(command, args, {
+    encoding: "utf8",
+    shell: needsShell(command),
+    timeout: 5000,
+    windowsHide: true
+  });
+  if (result.error || result.status !== 0) return null;
+
+  const output = [outputToString(result.stdout), outputToString(result.stderr)]
+    .filter((part) => part.trim().length > 0)
+    .join("\n")
+    .trim();
+  return output.length > 0 ? { command, output } : null;
+}
+
+function firstLine(output: string | null): string | null {
+  return output?.split(/\r?\n/).find((line) => line.trim().length > 0)?.trim() ?? null;
+}
+
+function commandPath(command: string): string {
+  if (command.includes("/") || command.includes("\\")) return command;
+  const lookup = osPlatform() === "win32" ? tryExec("where.exe", [command]) : tryExec("which", [command]);
+  return firstLine(lookup?.output ?? null) ?? command;
+}
+
+function checkDocker(): DockerStatus {
+  const docker = tryExec("docker", ["--version"]);
+  if (!docker) {
+    return {
+      installed: false,
+      version: null,
+      composeVersion: null,
+      issues: ["Docker CLI not found or not executable."]
+    };
+  }
+
+  const compose = tryExec("docker", ["compose", "version"]);
+  return {
+    installed: true,
+    version: firstLine(docker.output),
+    composeVersion: firstLine(compose?.output ?? null),
+    path: commandPath(docker.command),
+    issues: compose ? [] : ["Docker Compose plugin not found or not executable."]
+  };
 }
 
 async function checkNetwork(): Promise<NetworkCheck[]> {
@@ -201,6 +273,21 @@ function toolchainCheckStatus(status: ToolchainStatus): CheckLine["status"] {
 
 function toolchainDetail(status: ToolchainStatus): string {
   return status.issues[0] ?? status.version ?? status.path ?? "installed";
+}
+
+function dockerCheckStatus(status: DockerStatus): CheckLine["status"] {
+  if (!status.installed) return "miss";
+  if (status.issues.length > 0) return "warn";
+  return "ok";
+}
+
+function dockerDetail(status: DockerStatus): string {
+  if (!status.installed) return status.issues[0] ?? "Docker not installed";
+  const parts = [status.version ?? "Docker detected"];
+  if (status.composeVersion) parts.push(status.composeVersion);
+  if (status.path) parts.push(status.path);
+  if (status.issues.length > 0) parts.push(status.issues.join("; "));
+  return parts.join(" | ");
 }
 
 function networkSummaryStatus(checks: ReadonlyArray<NetworkCheck>): CheckLine["status"] {

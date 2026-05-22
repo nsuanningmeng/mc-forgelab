@@ -1,0 +1,9 @@
+node_modules
+release
+.turbo
+.git
+logs
+db
+workspace
+cache
+artifacts

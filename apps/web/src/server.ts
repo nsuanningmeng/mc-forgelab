@@ -149,14 +149,13 @@ function readPackageVersion(): string {
 
 export interface BuildAppOptions {
   /** Optional pre-resolved config. If omitted, buildApp resolves config
-   *  itself with `loadConfig({ mode: "web" })`. The desktop / docker
-   *  launchers MUST pass their own resolved cfg so per-mode data paths
-   *  stay consistent. */
+   *  itself from environment variables. Launchers may pass their own
+   *  resolved cfg so per-mode data paths stay consistent. */
   cfg?: AppConfig;
 }
 
 export async function buildApp(opts: BuildAppOptions = {}) {
-  const cfg = opts.cfg ?? loadConfig({ mode: "web" });
+  const cfg = opts.cfg ?? loadConfig();
   // Surface the resolved DB path on startup so anyone can verify which
   // file the server actually opens. Mismatched modes between launcher
   // (desktop / docker / web) and the embedded server would otherwise
@@ -287,7 +286,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
 }
 
 if (process.argv[1]?.endsWith("server.ts") || process.argv[1]?.endsWith("server.js")) {
-  const { app } = await buildApp();
-  const cfg = loadConfig({ mode: "web" });
+  const cfg = loadConfig();
+  const { app } = await buildApp({ cfg });
   await app.listen({ host: cfg.host, port: cfg.port });
 }
