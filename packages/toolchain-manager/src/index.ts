@@ -156,13 +156,6 @@ function inspectSystemTool(
   }
   const detail = lastAttempt?.error ?? missingIssue;
   return { toolName, installed: false, version: null, issues: [detail] };
-  return {
-    toolName,
-    installed: true,
-    version,
-    path: detected.path,
-    issues: version ? [] : [`Unable to parse ${toolName} version.`]
-  };
 }
 
 /** Resolve Java executable — prefers managed toolchain, falls back to system java */
