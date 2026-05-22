@@ -265,7 +265,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     builds.closeAll();
   });
 
-  return { app, storage };
+  return { app, storage, cfg };
 }
 
 if (process.argv[1]?.endsWith("server.ts") || process.argv[1]?.endsWith("server.js")) {
