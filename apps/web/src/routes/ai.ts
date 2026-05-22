@@ -476,6 +476,7 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
     providerId?: string;
     model?: string;
     settings?: { patchReview?: boolean };
+    history?: { role: string; content: string }[];
   } }>(
     "/api/ai/workflow-runs",
     async (req, reply) => {
@@ -501,6 +502,15 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
         if (active) return reply.status(409).send({ error: "A workflow run is already active for this project" });
       }
 
+      const historyContext: { role: "user" | "assistant" | "system"; content: string }[] = [];
+      if (Array.isArray(body.history)) {
+        for (const m of body.history) {
+          if (m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim().length > 0) {
+            historyContext.push({ role: m.role, content: m.content.trim() });
+          }
+        }
+      }
+
       const result = await ctx.workflowRuntime.startRun({
         workflowId: body.workflowId,
         userPrompt: body.prompt,
@@ -509,7 +519,7 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
         model: body.model,
         patchReviewEnabled: body.settings?.patchReview === true,
         triggerType: "manual",
-        contextMessages: buildWorkflowHistoryContext(ctx, body.projectId)
+        contextMessages: [...buildWorkflowHistoryContext(ctx, body.projectId), ...historyContext]
       });
       return reply.status(202).send(result);
     }

@@ -83,10 +83,16 @@ window.MCFL = window.MCFL || {};
       Store.dispatch('ADD_MESSAGE', { role: 'user', type: 'text', content: userPrompt });
 
       try {
+        const history = Store.getState().messages
+          .filter(m => m.role === 'user' || m.role === 'assistant')
+          .slice(-20)
+          .map(m => ({ role: m.role, content: m.content }));
+
         const run = await api.startWorkflowRun({
           projectId,
           workflowId: state.activeWorkflowId,
-          prompt: userPrompt
+          prompt: userPrompt,
+          history
         });
         Store.initWorkflowStream(run.runId);
       } catch (err) {

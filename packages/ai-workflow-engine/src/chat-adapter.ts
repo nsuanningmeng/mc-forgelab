@@ -112,8 +112,9 @@ function buildMessages(
 
   for (const message of contextMessages) {
     const content = message.content.trim();
-    if (message.role === "system" && content.length > 0) {
-      messages.push({ role: "system", content });
+    if (content.length === 0) continue;
+    if (message.role === "system" || message.role === "user" || message.role === "assistant") {
+      messages.push({ role: message.role, content });
     }
   }
 

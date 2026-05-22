@@ -43,7 +43,7 @@ export type RuntimeEvent =
   | { type: "heartbeat"; runId: string };
 
 export interface WorkflowContextMessage {
-  readonly role: "system";
+  readonly role: "system" | "user" | "assistant";
   readonly content: string;
 }
 
@@ -711,6 +711,7 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         emit({ type: "step_log", runId, stepRowId: stepRecord.id, line: "Resolved step inputs." });
         const response = await resolved.adapter.invoke(step.role, promptFromInputs(inputs), inputs, {
           signal,
+          contextMessages,
           onDelta: (chunk) => {
             if (chunk.length > 0) emit({ type: "model_delta", runId, stepRowId: stepRecord.id, chunk });
           }
