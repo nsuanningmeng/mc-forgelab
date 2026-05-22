@@ -45,3 +45,4 @@ target/
 # Playwright e2e outputs
 apps/web/test-results/
 apps/web/playwright-report/
+test-results/
