@@ -78,11 +78,13 @@ window.MCFL = window.MCFL || {};
     const [rotatingProvider, setRotatingProvider] = useState(null);
     const [newApiKey, setNewApiKey] = useState('');
     const [testResult, setTestResult] = useState(null);
+    const [healthInfo, setHealthInfo] = useState(null);
 
     const reload = useCallback(() => {
       setError(null);
       api.providers().then(setProviders).catch(() => setProviders([]));
       api.modelProfiles().then(setProfiles).catch(() => setProfiles([]));
+      fetch('/api/health').then(r => r.json()).then(setHealthInfo).catch(() => setHealthInfo(null));
     }, []);
 
     useEffect(reload, [reload]);
@@ -228,10 +230,28 @@ window.MCFL = window.MCFL || {};
           </Section>
 
           <Section title={t.settings.groups.workspace} description={desc.workspace} badge={<StatusBadge variant="success" label={t.common.status || "active"} />}>
-            <div className="flex flex-col gap-2">
-              <div className="flex justify-between"><span>Default Path</span><span className={cx.mono}>/opt/mc-forgelab</span></div>
-              <div className="flex justify-between"><span>Quota</span><span>10 GB</span></div>
-            </div>
+            {healthInfo === null ? (
+              <span className="text-tx3">{t.settings.workspace?.loading || "Loading…"}</span>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between">
+                  <span>{t.settings.workspace?.defaultPath || "Default Path"}</span>
+                  <span className={cx.mono}>{healthInfo.workspace || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>{t.settings.workspace?.quota || "Storage Quota"}</span>
+                  <span>{healthInfo.limits?.maxArtifactStorageBytes
+                    ? `${(healthInfo.limits.maxArtifactStorageBytes / (1024 * 1024 * 1024)).toFixed(0)} GB`
+                    : "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>{t.settings.workspace?.retention || "Artifact Retention"}</span>
+                  <span>{healthInfo.limits?.artifactRetentionDays
+                    ? `${healthInfo.limits.artifactRetentionDays} days`
+                    : "—"}</span>
+                </div>
+              </div>
+            )}
           </Section>
 
           <Section title={t.settings.groups.security} description={desc.security} data-testid="security-section">

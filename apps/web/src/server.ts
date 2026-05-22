@@ -247,6 +247,8 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     version: APP_VERSION,
     storage: storage.backend.name,
     persistent: storage.backend.name === "sqlite",
+    workspace: cfg.paths.workspace,
+    limits: cfg.limits,
   }));
 
   app.addHook("onClose", async () => {
