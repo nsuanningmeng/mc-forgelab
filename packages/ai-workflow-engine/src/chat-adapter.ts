@@ -35,6 +35,64 @@ function throwIfAborted(signal?: AbortSignal): void {
   }
 }
 
+const FILE_PATCH_JSON_SCHEMA_EXAMPLE = `{
+  "type": "file_patch",
+  "summary": "Short description of the intended changes.",
+  "operations": [
+    {
+      "op": "create",
+      "path": "src/main/java/com/example/Main.java",
+      "content": "Full file content for create or update operations."
+    },
+    {
+      "op": "update",
+      "path": "src/main/resources/plugin.yml",
+      "content": "Full replacement file content."
+    },
+    {
+      "op": "move",
+      "path": "src/main/java/com/example/OldName.java",
+      "newPath": "src/main/java/com/example/NewName.java"
+    },
+    {
+      "op": "delete",
+      "path": "src/main/java/com/example/Unused.java"
+    }
+  ],
+  "notes": ["Optional implementation notes."]
+}`;
+
+const ROLE_SYSTEM_PROMPTS: Record<string, string> = {
+  code_generator: `You are the code generation step in the MC ForgeLab workflow.
+Return ONLY valid JSON matching the FilePatch schema. Do not wrap the JSON in markdown fences and do not include prose outside the JSON.
+The root object must have type "file_patch", a summary string, and an operations array.
+Each operation must use a relative path. Use op "create", "update", "delete", or "move".
+For create and update operations, include complete file content in the content field.
+For move operations, include newPath and do not include content.
+For delete operations, include only op and path.
+
+FilePatch JSON schema example:
+${FILE_PATCH_JSON_SCHEMA_EXAMPLE}`,
+
+  auto_fixer: `You are the automatic build fixer in the MC ForgeLab workflow.
+Analyze the supplied build errors, previous patch failures, build logs, and project files.
+Return ONLY valid JSON matching the FilePatch schema. Do not wrap the JSON in markdown fences and do not include prose outside the JSON.
+Produce the smallest patch that can reasonably fix the reported build failure.
+Use relative paths only. Preserve unrelated files and behavior.
+For create and update operations, include complete file content in the content field.
+For move operations, include newPath and do not include content.
+For delete operations, include only op and path.
+
+FilePatch JSON schema example:
+${FILE_PATCH_JSON_SCHEMA_EXAMPLE}`,
+
+  build_error_analyzer: `You are the build error analysis step in the MC ForgeLab workflow.
+Analyze the supplied build result, compiler output, runtime logs, and previous patch failure details.
+Return ONLY valid JSON. Do not wrap the JSON in markdown fences and do not include prose outside the JSON.
+Use this structure: {"summary":"short error summary","errorCode":"BUILD_FAILED or TOOLCHAIN_UNAVAILABLE or UNKNOWN","likelyCause":"most likely root cause","evidence":["specific log excerpts or facts"],"suggestedFocusFiles":["relative/path/File.java"],"recommendedFix":"concise fix strategy"}.
+Keep evidence concise and avoid inventing files that are not supported by the input.`
+};
+
 function contextToPrompt(context: Record<string, string>): string {
   return Object.entries(context).map(([key, value]) => `## ${key}\n${value}`).join("\n\n");
 }
@@ -47,7 +105,7 @@ function buildMessages(
   contextMessages: readonly ChatMessage[] = []
 ): readonly ChatMessage[] {
   const messages: ChatMessage[] = [];
-  const system = systemPrompt?.trim();
+  const system = (systemPrompt?.trim() || ROLE_SYSTEM_PROMPTS[role])?.trim();
   if (system) {
     messages.push({ role: "system", content: system });
   }

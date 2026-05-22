@@ -75,6 +75,8 @@ window.MCFL = window.MCFL || {};
     const [showProfileForm, setShowProfileForm] = useState(false);
     const [busy, setBusy] = useState(null);
     const [error, setError] = useState(null);
+    const [rotatingProvider, setRotatingProvider] = useState(null);
+    const [newApiKey, setNewApiKey] = useState('');
     const [testResult, setTestResult] = useState(null);
 
     const reload = useCallback(() => {
@@ -123,6 +125,24 @@ window.MCFL = window.MCFL || {};
         reload();
       } catch (err) {
         setError(err.message || String(err));
+      }
+    };
+
+    const handleRotateKey = async (p) => {
+      if (!newApiKey.trim() || newApiKey.length < 4) {
+        setError("API Key must be at least 4 characters");
+        return;
+      }
+      setBusy(p.id);
+      try {
+        await api.updateProvider(p.id, { apiKey: newApiKey.trim() });
+        setRotatingProvider(null);
+        setNewApiKey('');
+        reload();
+      } catch (err) {
+        setError(err.message || String(err));
+      } finally {
+        setBusy(null);
       }
     };
 
@@ -214,8 +234,42 @@ window.MCFL = window.MCFL || {};
             </div>
           </Section>
 
-          <Section title={t.settings.groups.security} description={desc.security}>
-            <button className={cx.btnSecondary} disabled>{t.common.confirm} Rotation</button>
+          <Section title={t.settings.groups.security} description={desc.security} data-testid="security-section">
+            {providers === null ? (
+              <span className="text-tx3">{t.common.loading}…</span>
+            ) : providers.length === 0 ? (
+              <span className="text-tx3">No providers configured</span>
+            ) : (
+              <div className="space-y-2">
+                {providers.map(p => (
+                  <div key={p.id} className="px-3 py-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-tx1">{p.displayName}</span>
+                        <StatusBadge variant={p.hasKey ? "success" : "warn"} label={p.hasKey ? "Key stored" : "No key"} dot={false} />
+                      </div>
+                      <button onClick={() => { setRotatingProvider(p.id); setNewApiKey(''); }} className={cx.btnSecondary}>
+                        Rotate Key
+                      </button>
+                    </div>
+                    {rotatingProvider === p.id && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          type="password"
+                          value={newApiKey}
+                          onChange={(e) => setNewApiKey(e.target.value)}
+                          placeholder="Enter new API Key"
+                          className={cx.j(cx.input, "flex-1")}
+                          autoFocus
+                        />
+                        <button onClick={() => handleRotateKey(p)} disabled={busy === p.id} className={cx.btnPrimary}>{busy === p.id ? "Saving..." : "Save"}</button>
+                        <button onClick={() => { setRotatingProvider(null); setNewApiKey(''); }} className={cx.btnGhost}>Cancel</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </Section>
 
           <Section title={t.settings.groups.appearance} description={desc.appearance}>

@@ -21,10 +21,20 @@ jobs:
         include:
           - os: windows-latest
             platform: win
-          - os: macos-latest
+            artifact: win
+          # Pin macOS labels and isolate architectures. `macos-latest` is a moving label
+          # that can cause nondeterministic ENOENT errors during .app rename.
+          - os: macos-15-intel
             platform: mac
+            arch: x64
+            artifact: mac-x64
+          - os: macos-15
+            platform: mac
+            arch: arm64
+            artifact: mac-arm64
           - os: ubuntu-latest
             platform: linux
+            artifact: linux
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -40,11 +50,31 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build --filter=!@mc-forgelab/desktop
       - run: pnpm --filter @mc-forgelab/desktop build
+      - name: Show macOS packaging context
+        if: matrix.platform == 'mac'
+        working-directory: apps/desktop
+        run: |
+          sw_vers
+          uname -m
+          node -p "process.platform + ' ' + process.arch"
+          pnpm exec electron-builder --version
       - name: Rebuild native modules for Electron
+        if: matrix.platform != 'mac'
         run: pnpm exec electron-builder install-app-deps
         working-directory: apps/desktop
+      - name: Rebuild native modules for Electron (macOS)
+        if: matrix.platform == 'mac'
+        run: pnpm exec electron-builder install-app-deps --platform=darwin --arch=${{ matrix.arch }}
+        working-directory: apps/desktop
       - name: Package desktop
-        run: npx electron-builder --publish never
+        if: matrix.platform != 'mac'
+        run: pnpm exec electron-builder --publish never
+        working-directory: apps/desktop
+      - name: Package desktop (macOS)
+        if: matrix.platform == 'mac'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: pnpm exec electron-builder --mac dmg zip --${{ matrix.arch }} --publish never
         working-directory: apps/desktop
       - name: Smoke packaged desktop (Linux AppImage)
         if: matrix.platform == 'linux'
@@ -75,7 +105,7 @@ jobs:
           node -e 'const b=JSON.parse(process.argv[1]); if (b.storage !== "sqlite" || b.persistent !== true) { console.error(b); process.exit(1); }' "$BODY"
       - uses: actions/upload-artifact@v4
         with:
-          name: desktop-${{ matrix.platform }}
+          name: desktop-${{ matrix.artifact }}
           path: |
             apps/desktop/release/*.exe
             apps/desktop/release/*.dmg

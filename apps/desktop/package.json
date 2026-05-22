@@ -1,6 +1,6 @@
 {
   "name": "@mc-forgelab/desktop",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "private": true,
   "type": "module",
   "main": "dist/main.js",
@@ -43,6 +43,7 @@
   "build": {
     "appId": "com.mc-forgelab.desktop",
     "productName": "MC ForgeLab",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },
@@ -81,20 +82,8 @@
     },
     "mac": {
       "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
+        "dmg",
+        "zip"
       ],
       "icon": "assets/icon.icns"
     },

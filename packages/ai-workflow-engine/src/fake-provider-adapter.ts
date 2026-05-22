@@ -61,7 +61,17 @@ function responseText(role: StepRole): string {
     case "build_error_analyzer":
       return "The fake build log indicates no actionable compiler errors in v0.3.0 runtime validation.";
     case "auto_fixer":
-      return "No patch is required because the deterministic fake build succeeds.";
+      return JSON.stringify({
+        type: "file_patch",
+        summary: "Fake auto-fix patch for runtime validation.",
+        operations: [
+          {
+            op: "update",
+            path: "src/main/java/com/example/Main.java",
+            content: "package com.example;\n\npublic final class Main {\n  public String name() {\n    return \"MC-AI-ForgeLab-Fixed\";\n  }\n}\n"
+          }
+        ]
+      });
     case "documentation_writer":
       return "Generated documentation describes the plugin layout, build command, and produced artifact.";
     case "final_summarizer":
