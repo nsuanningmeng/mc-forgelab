@@ -84,7 +84,7 @@ window.MCFL = window.MCFL || {};
             </div>
             <div className="flex flex-col min-w-0">
               <div className="text-xs font-bold text-tx1 truncate">ForgeLab User</div>
-              <div className="text-[10px] text-tx3 font-mono">v0.4.3</div>
+              <div className="text-[10px] text-tx3 font-mono">v0.4.4</div>
             </div>
           </div>
           <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" title="Online" />
