@@ -10,6 +10,7 @@ window.MCFL = window.MCFL || {};
     const [newProjectName, setNewProjectName] = useState('');
     const scrollRef = useRef(null);
     const isNearBottomRef = useRef(true);
+    const isCreatingRef = useRef(false);
 
     useEffect(() => {
       const unsub = Store.subscribe(setState);
@@ -36,21 +37,54 @@ window.MCFL = window.MCFL || {};
       isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 100;
     };
 
+    const deriveProjectName = (prompt) => {
+      const sanitized = prompt
+        .replace(/[^\w\s一-鿿_-]/g, ' ')
+        .replace(/_+/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return sanitized.slice(0, 50) || 'Untitled Project';
+    };
+
     const handleSend = async () => {
-      if (!input.trim() || state.workflowStatus === 'running') return;
-      if (!state.activeProjectId) {
-        alert(t.ws?.pickProject || "Please select a project first");
-        return;
-      }
+      if (!input.trim() || state.workflowStatus === 'running' || isCreatingRef.current) return;
 
       const userPrompt = input.trim();
       setInput('');
+
+      let projectId = state.activeProjectId;
+
+      if (!projectId) {
+        let project = state.projects.length > 0 ? state.projects[0] : null;
+        if (!project) {
+          const autoName = deriveProjectName(userPrompt);
+          const alphaPart = autoName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 48);
+          const packageName = 'com.example.' + (alphaPart || 'untitled');
+          isCreatingRef.current = true;
+          try {
+            project = await api.createProject({
+              name: autoName,
+              targetId: 'paper',
+              minecraftVersion: '1.21.4',
+              packageName
+            });
+            Store.dispatch('SET_PROJECTS', [...Store.getState().projects, project]);
+          } catch (err) {
+            Store.dispatch('ADD_MESSAGE', { role: 'system', type: 'error', content: 'Failed to create project: ' + err.message });
+            return;
+          } finally {
+            isCreatingRef.current = false;
+          }
+        }
+        Store.dispatch('SET_PROJECT', project);
+        projectId = project.id;
+      }
 
       Store.dispatch('ADD_MESSAGE', { role: 'user', type: 'text', content: userPrompt });
 
       try {
         const run = await api.startWorkflowRun({
-          projectId: state.activeProjectId,
+          projectId,
           workflowId: state.activeWorkflowId,
           prompt: userPrompt
         });
@@ -228,9 +262,6 @@ window.MCFL = window.MCFL || {};
                 </div>
                 <h3 className="text-lg font-medium text-tx1 mb-2">{t.ws?.title || "AI Workspace"}</h3>
                 <p className="text-sm text-tx3 max-w-sm">{t.ws?.subtitle || "Describe what you want to build"}</p>
-                {!state.activeProjectId && (
-                  <p className="mt-4 text-mc text-xs animate-bounce font-medium">{t.ws?.pickProject || "Select a project to start"}</p>
-                )}
               </div>
             )}
             {state.messages.map(msg => (

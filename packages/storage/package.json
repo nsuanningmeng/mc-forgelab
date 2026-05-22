@@ -21,12 +21,12 @@
     "clean": "rimraf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@mc-forgelab/core": "workspace:*",
     "@mc-forgelab/app-error": "workspace:*",
+    "@mc-forgelab/core": "workspace:*",
     "@mc-forgelab/logger": "workspace:*"
   },
   "optionalDependencies": {
-    "better-sqlite3": "^11.5.0"
+    "better-sqlite3": "^12.10.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
