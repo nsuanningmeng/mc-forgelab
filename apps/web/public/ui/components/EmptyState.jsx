@@ -1,13 +1,19 @@
 // EmptyState — honest placeholder with optional "Planned" / "Early dev" badge
 window.MCFL = window.MCFL || {};
 (function () {
-  const { cx, Icon, StatusBadge } = window.MCFL;
+  const { cx, Icon, StatusBadge, LANGS } = window.MCFL;
+
+  function getLang() {
+    try { return localStorage.getItem('mcfl.lang') || 'zh'; } catch { return 'zh'; }
+  }
 
   // variant: "default" | "planned" | "early-dev"
   function EmptyState({ icon = "info", title, description, variant = "default", action }) {
+    const lang = getLang();
+    const t = LANGS[lang] || LANGS.zh;
     const badge =
-      variant === "planned" ? <StatusBadge variant="planned" label="planned" />
-      : variant === "early-dev" ? <StatusBadge variant="warn" label="early dev" />
+      variant === "planned" ? <StatusBadge variant="planned" label={t.planned || "planned"} />
+      : variant === "early-dev" ? <StatusBadge variant="warn" label={t.earlyDev || "early dev"} />
       : null;
 
     return (
