@@ -39,12 +39,6 @@ window.MCFL = window.MCFL || {};
               </button>
             ))}
           </nav>
-
-          <div className="mt-auto flex flex-col items-center gap-4">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-mc/20 to-mc/40 border border-mc/30 flex items-center justify-center text-[10px] font-bold text-mc shadow-inner group cursor-default">
-              <span className="group-hover:scale-110 transition-transform">FL</span>
-            </div>
-          </div>
         </aside>
       );
     }
@@ -74,19 +68,6 @@ window.MCFL = window.MCFL || {};
             </button>
           ))}
         </nav>
-
-        <div className="p-4 border-t border-border/50 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-mc to-mc/60 border-2 border-surface shadow-md flex items-center justify-center text-[11px] font-bold text-white shrink-0">
-              FL
-            </div>
-            <div className="flex flex-col min-w-0">
-              <div className="text-xs font-bold text-tx1 truncate">ForgeLab User</div>
-              <div className="text-[10px] text-tx3 font-mono">v0.4.14</div>
-            </div>
-          </div>
-          <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" title="Online" />
-        </div>
       </aside>
     );
   }

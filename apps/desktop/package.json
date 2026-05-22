@@ -1,6 +1,6 @@
 {
   "name": "@mc-forgelab/desktop",
-  "version": "0.4.14",
+  "version": "0.4.15",
   "private": true,
   "type": "module",
   "main": "dist/main.js",
@@ -36,6 +36,7 @@
     "@electron/rebuild": "^3.6.1",
     "@types/node": "^22.10.0",
     "electron": "^30.0.0",
+    "@electron/notarize": "^2.5.0",
     "electron-builder": "^25.1.8",
     "rimraf": "^6.0.1",
     "typescript": "^5.6.3"
@@ -85,8 +86,13 @@
         "dmg",
         "zip"
       ],
-      "icon": "assets/icon.png"
+      "icon": "assets/icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist"
     },
+    "afterSign": "scripts/notarize.js",
     "linux": {
       "target": [
         {

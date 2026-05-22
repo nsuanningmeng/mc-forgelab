@@ -39,6 +39,10 @@ target/
 *.sqlite
 *.db
 
+# code signing (generated locally, stored in GitHub Secrets)
+*.pfx
+*.p12
+
 # local AI planning / Claude Code
 .claude/
 

@@ -47,7 +47,7 @@ window.MCFL = window.MCFL || {};
           <aside className={cx.j(cx.card, "p-3")}>
             <div className={cx.j(cx.sectionTitle, "opacity-70 mb-2")}>{t.common.projects}</div>
             {projects.length === 0 ? (
-              <EmptyState icon="folder" title={t.dash.noProjects} variant="early-dev" />
+              <EmptyState icon="folder" title={t.dash.noProjects} variant="default" />
             ) : (
               <div className="space-y-1.5">
                 {projects.map((p) => (
@@ -63,7 +63,7 @@ window.MCFL = window.MCFL || {};
             ) : artifacts === null ? (
               <div className={cx.j(cx.card, "px-4 py-10 text-center text-tx3 text-sm")}>{t.common.loading}…</div>
             ) : artifacts.length === 0 ? (
-              <EmptyState icon="box" title={t.art.noArtifacts} variant="early-dev" />
+              <EmptyState icon="box" title={t.art.noArtifacts} variant="default" />
             ) : (
               <ArtifactTable
                 artifacts={artifacts}
