@@ -61,6 +61,10 @@ window.MCFL.LANGS = {
       showLess: "收起",
       saving: "保存中…",
       removeFilter: "移除筛选 {name}",
+      noProviders: "未配置 Provider",
+      rotateKey: "轮换密钥",
+      keyPlaceholder: "输入新的 API Key",
+      noFileHint: "生成项目后将显示文件。",
     },
 
     system: {
@@ -427,6 +431,10 @@ window.MCFL.LANGS = {
       showLess: "Show Less",
       saving: "Saving…",
       removeFilter: "Remove filter {name}",
+      noProviders: "No providers configured",
+      rotateKey: "Rotate Key",
+      keyPlaceholder: "Enter new API Key",
+      noFileHint: "Files will appear after project generation.",
     },
 
     system: {

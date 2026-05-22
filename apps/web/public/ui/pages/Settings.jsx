@@ -313,7 +313,7 @@ window.MCFL = window.MCFL || {};
           <Section title={t.settings.groups.toolchains} description={desc.toolchains} badge={<StatusBadge variant="success" label="active" dot={false} />}>
             <div className="flex items-center gap-2">
               <Icon name="check" className="text-mc w-3.5 h-3.5" />
-              <span>JDK detection is live. CLI manages installs.</span>
+              <span>{t.tc?.subtitle || "JDK detection is live. CLI manages installs."}</span>
             </div>
           </Section>
 
@@ -391,7 +391,7 @@ window.MCFL = window.MCFL || {};
             {providers === null ? (
               <span className="text-tx3">{t.common.loading}…</span>
             ) : providers.length === 0 ? (
-              <span className="text-tx3">No providers configured</span>
+              <span className="text-tx3">{t.common?.noProviders || "No providers configured"}</span>
             ) : (
               <div className="space-y-2">
                 {providers.map(p => (
@@ -411,7 +411,7 @@ window.MCFL = window.MCFL || {};
                           type="password"
                           value={newApiKey}
                           onChange={(e) => setNewApiKey(e.target.value)}
-                          placeholder="Enter new API Key"
+                          placeholder={t.common?.keyPlaceholder || "Enter new API Key"}
                           className={cx.j(cx.input, "flex-1")}
                           autoFocus
                         />

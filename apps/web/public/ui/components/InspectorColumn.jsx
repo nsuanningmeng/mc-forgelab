@@ -184,7 +184,7 @@ window.MCFL = window.MCFL || {};
                       <FileTreeView files={fileTree} onSelect={handleFileSelect} t={t} />
                     ) : (
                       <div className="py-20">
-                        <EmptyState icon="folder" title={t.common?.empty || "No files"} description="Files will appear after project generation." />
+                        <EmptyState icon="folder" title={t.common?.empty || "No files"} description={t.common?.noFileHint || "Files will appear after project generation."} />
                       </div>
                     )}
                   </div>
