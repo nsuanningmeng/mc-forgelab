@@ -83,8 +83,20 @@ window.MCFL = window.MCFL || {};
       }
     };
 
-    const handleFileSelect = (path) => {
+    const handleFileSelect = async (path) => {
+      if (!activeProjectId) return;
       setSelectedFile({ path, content: '' });
+      try {
+        const res = await fetch(`/api/projects/${activeProjectId}/files/${path}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSelectedFile({ path, content: data.content || '' });
+        } else {
+          setSelectedFile({ path, content: '// Failed to load file content' });
+        }
+      } catch {
+        setSelectedFile({ path, content: '// Error loading file' });
+      }
     };
 
     const handleMouseDown = (e) => {
