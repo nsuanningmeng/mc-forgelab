@@ -50,4 +50,4 @@ target/
 apps/web/test-results/
 apps/web/playwright-report/
 test-results/
-.r.n.ace-tool/
+.ace-tool/
