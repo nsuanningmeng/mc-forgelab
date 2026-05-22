@@ -92,7 +92,7 @@
       "entitlements": "assets/entitlements.mac.plist",
       "entitlementsInherit": "assets/entitlements.mac.plist"
     },
-    "afterSign": "scripts/notarize.js",
+    "afterSign": "scripts/notarize.cjs",
     "linux": {
       "target": [
         {
