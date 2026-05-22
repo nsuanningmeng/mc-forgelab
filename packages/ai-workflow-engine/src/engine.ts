@@ -159,12 +159,17 @@ export function createWorkflowEngine(storage: Storage): WorkflowEngine {
 
     seedBuiltins() {
       for (const def of BUILTIN_WORKFLOWS) {
-        const existing = storage.backend.get("SELECT id FROM ai_workflows WHERE id = ?", [def.id]);
+        const existing = storage.backend.get<{ name: string }>("SELECT name FROM ai_workflows WHERE id = ?", [def.id]);
         if (!existing) {
           const now = new Date().toISOString();
           storage.backend.run(
             "INSERT INTO ai_workflows (id, name, mode, definition_json, builtin, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             [def.id, def.name, def.mode, JSON.stringify(def), 1, now, now]
+          );
+        } else if (existing.name !== def.name) {
+          storage.backend.run(
+            "UPDATE ai_workflows SET name = ?, definition_json = ?, updated_at = ? WHERE id = ?",
+            [def.name, JSON.stringify(def), new Date().toISOString(), def.id]
           );
         }
       }
