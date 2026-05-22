@@ -3,7 +3,7 @@ import { createWriteStream, mkdirSync } from "node:fs";
 import { join, dirname, relative, isAbsolute } from "node:path";
 import { randomUUID } from "node:crypto";
 import { resolveInsideBase } from "@mc-forgelab/file-operation";
-import { resolveJavaWithAutoDownload, resolveGradleWrapper } from "@mc-forgelab/toolchain-manager";
+import { resolveJavaWithAutoDownload, resolveGradleWrapper, bootstrapGradleWrapper } from "@mc-forgelab/toolchain-manager";
 
 export type BuildStatus = "queued" | "running" | "success" | "failed" | "canceled";
 
@@ -45,10 +45,15 @@ export async function runBuild(
   if (!rel || rel.startsWith("..") || isAbsolute(rel)) throw new Error("projectPath is outside workspaceRoot");
 
   const javaVersion = opts.javaVersion ?? 17;
-  const [java, gradle] = await Promise.all([
-    resolveJavaWithAutoDownload(javaVersion, { onProgress: (msg) => onLog(`[toolchain] ${msg}`) }),
-    resolveGradleWrapper(opts.projectPath)
-  ]);
+  const java = await resolveJavaWithAutoDownload(javaVersion, { onProgress: (msg) => onLog(`[toolchain] ${msg}`) });
+
+  let gradle;
+  try {
+    gradle = await resolveGradleWrapper(opts.projectPath);
+  } catch {
+    onLog("[toolchain] Gradle wrapper not found, bootstrapping...");
+    gradle = await bootstrapGradleWrapper(opts.projectPath, undefined, { onProgress: (msg) => onLog(`[toolchain] ${msg}`) });
+  }
 
   // Whitelist env — never inherit full process.env to avoid leaking host secrets
   // PATH is required for gradle/java resolution; include platform-correct key
