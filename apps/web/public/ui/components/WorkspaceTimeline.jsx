@@ -2,7 +2,14 @@ window.MCFL = window.MCFL || {};
 (function () {
   const { cx, Icon, StatusBadge } = window.MCFL;
 
-  const ROLE_MAP = {
+  const ROLE_MAP_ZH = {
+    planner: "规划",
+    coder: "编码",
+    reviewer: "审查",
+    builder: "构建",
+    executor: "执行",
+  };
+  const ROLE_MAP_EN = {
     planner: "Planner",
     coder: "Coder",
     reviewer: "Reviewer",
@@ -11,6 +18,8 @@ window.MCFL = window.MCFL || {};
   };
 
   function WorkspaceTimeline({ t, steps, activeStepId }) {
+    const lang = (() => { try { return localStorage.getItem('mcfl.lang') || 'zh'; } catch { return 'zh'; } })();
+    const roleMap = lang === 'en' ? ROLE_MAP_EN : ROLE_MAP_ZH;
     if (!Array.isArray(steps) || steps.length === 0) {
       return (
         <div className={cx.j(cx.card, "p-8 text-center text-tx3")}>
@@ -48,7 +57,7 @@ window.MCFL = window.MCFL || {};
                 <div className="flex items-center justify-between gap-3 mb-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-sm">
-                      {ROLE_MAP[step.role] || step.role}
+                      {roleMap[step.role] || step.role}
                     </span>
                     <StatusBadge 
                       variant={badgeVariant} 

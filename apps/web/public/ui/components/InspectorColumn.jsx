@@ -75,7 +75,7 @@ window.MCFL = window.MCFL || {};
     const handleStartBuild = async () => {
       if (!activeProjectId || isBuilding) return;
       try {
-        setBuildLogs(["Starting new build..."]);
+        setBuildLogs([t.ws?.starting || "Starting new build..."]);
         const newBuild = await api.startBuild(activeProjectId);
         Store.dispatch('SET_CURRENT_BUILD', newBuild);
       } catch (err) {
