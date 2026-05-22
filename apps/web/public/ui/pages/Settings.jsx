@@ -81,6 +81,9 @@ window.MCFL = window.MCFL || {};
     const [workspaceSettings, setWorkspaceSettings] = useState(null);
     const [editingWorkspace, setEditingWorkspace] = useState(false);
     const [wsDraft, setWsDraft] = useState({ workspacePath: '', maxArtifactStorageBytes: '', artifactRetentionDays: '' });
+    const [proxySettings, setProxySettings] = useState(null);
+    const [editingProxy, setEditingProxy] = useState(false);
+    const [proxyDraft, setProxyDraft] = useState({ http: '', httpPort: '', https: '', httpsPort: '', username: '', password: '', noProxy: '' });
 
     const reload = useCallback(() => {
       setError(null);
@@ -94,6 +97,18 @@ window.MCFL = window.MCFL || {};
           artifactRetentionDays: String(data.artifactRetentionDays || 30),
         });
       }).catch(() => setWorkspaceSettings(null));
+      api.getProxy().then(data => {
+        setProxySettings(data);
+        setProxyDraft({
+          http: data.http || '',
+          httpPort: data.httpPort ? String(data.httpPort) : '',
+          https: data.https || '',
+          httpsPort: data.httpsPort ? String(data.httpsPort) : '',
+          username: data.username || '',
+          password: '', // sensitive
+          noProxy: data.noProxy || '',
+        });
+      }).catch(() => setProxySettings(null));
     }, []);
 
     useEffect(reload, [reload]);
@@ -190,6 +205,30 @@ window.MCFL = window.MCFL || {};
         const data = await res.json();
         setWorkspaceSettings(data);
         setEditingWorkspace(false);
+      } catch (err) {
+        setError(err.message || String(err));
+      } finally {
+        setBusy(null);
+      }
+    };
+
+    const handleSaveProxy = async () => {
+      setBusy('proxy');
+      try {
+        const body = {
+          http: proxyDraft.http.trim() || null,
+          httpPort: proxyDraft.httpPort ? Number(proxyDraft.httpPort) : null,
+          https: proxyDraft.https.trim() || null,
+          httpsPort: proxyDraft.httpsPort ? Number(proxyDraft.httpsPort) : null,
+          username: proxyDraft.username.trim() || null,
+          noProxy: proxyDraft.noProxy.trim() || null,
+        };
+        if (proxyDraft.password) body.password = proxyDraft.password;
+        
+        await api.updateProxy(body);
+        const data = await api.getProxy();
+        setProxySettings(data);
+        setEditingProxy(false);
       } catch (err) {
         setError(err.message || String(err));
       } finally {
@@ -382,6 +421,85 @@ window.MCFL = window.MCFL || {};
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </Section>
+
+          <Section title={t.settings.groups.proxy} description={desc.proxy} data-testid="proxy-section">
+            {proxySettings === null ? (
+              <span className="text-tx3">{t.common.loading}…</span>
+            ) : editingProxy ? (
+              <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <label className="text-2xs text-tx3 mb-1 block">{t.settings.proxy.httpProxy}</label>
+                    <input type="text" value={proxyDraft.http} onChange={e => setProxyDraft({...proxyDraft, http: e.target.value})} className={cx.j(cx.input, "w-full")} placeholder="proxy.example.com" />
+                  </div>
+                  <div>
+                    <label className="text-2xs text-tx3 mb-1 block">{t.settings.proxy.httpPort}</label>
+                    <input type="number" value={proxyDraft.httpPort} onChange={e => setProxyDraft({...proxyDraft, httpPort: e.target.value})} className={cx.j(cx.input, "w-full")} placeholder="8080" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <label className="text-2xs text-tx3 mb-1 block">{t.settings.proxy.httpsProxy}</label>
+                    <input type="text" value={proxyDraft.https} onChange={e => setProxyDraft({...proxyDraft, https: e.target.value})} className={cx.j(cx.input, "w-full")} placeholder="proxy.example.com" />
+                  </div>
+                  <div>
+                    <label className="text-2xs text-tx3 mb-1 block">{t.settings.proxy.httpsPort}</label>
+                    <input type="number" value={proxyDraft.httpsPort} onChange={e => setProxyDraft({...proxyDraft, httpsPort: e.target.value})} className={cx.j(cx.input, "w-full")} placeholder="8443" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-2xs text-tx3 mb-1 block">{t.settings.proxy.username}</label>
+                    <input type="text" value={proxyDraft.username} onChange={e => setProxyDraft({...proxyDraft, username: e.target.value})} className={cx.j(cx.input, "w-full")} />
+                  </div>
+                  <div>
+                    <label className="text-2xs text-tx3 mb-1 block">{t.settings.proxy.password}</label>
+                    <input type="password" value={proxyDraft.password} onChange={e => setProxyDraft({...proxyDraft, password: e.target.value})} className={cx.j(cx.input, "w-full")} placeholder="******" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-2xs text-tx3 mb-1 block">{t.settings.proxy.noProxy}</label>
+                  <textarea value={proxyDraft.noProxy} onChange={e => setProxyDraft({...proxyDraft, noProxy: e.target.value})} className={cx.j(cx.input, "w-full h-16 resize-none")} placeholder="localhost, 127.0.0.1, .internal.company.com" />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setEditingProxy(false)} className={cx.btnGhost}>{t.common.cancel}</button>
+                  <button onClick={handleSaveProxy} disabled={busy === 'proxy'} className={cx.btnPrimary}>
+                    {busy === 'proxy' ? t.common.saving : t.common.save}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-tx3">{t.settings.proxy.httpProxy}</span>
+                  <span className={cx.mono}>{proxySettings.http ? `${proxySettings.http}:${proxySettings.httpPort || '80'}` : t.settings.proxy.notConfigured}</span>
+                </div>
+                {proxySettings.https && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-tx3">{t.settings.proxy.httpsProxy}</span>
+                    <span className={cx.mono}>{proxySettings.https}:{proxySettings.httpsPort || '443'}</span>
+                  </div>
+                )}
+                {proxySettings.username && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-tx3">{t.settings.proxy.auth}</span>
+                    <span className="text-tx2">{proxySettings.username} {proxySettings.password ? '***' : ''}</span>
+                  </div>
+                )}
+                {proxySettings.noProxy && (
+                  <div className="mt-1">
+                    <span className="text-2xs text-tx3 block mb-0.5">{t.settings.proxy.noProxy}</span>
+                    <div className="text-2xs text-tx2 bg-bg2 rounded px-2 py-1.5 break-all line-clamp-2">{proxySettings.noProxy}</div>
+                  </div>
+                )}
+                <div className="flex justify-end mt-1">
+                  <button onClick={() => setEditingProxy(true)} className={cx.btnSecondary}>
+                    {t.common.edit}
+                  </button>
+                </div>
               </div>
             )}
           </Section>

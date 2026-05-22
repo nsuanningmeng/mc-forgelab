@@ -10,6 +10,8 @@ vi.mock("@mc-forgelab/toolchain-manager", () => ({
   resolveJavaWithAutoDownload: vi.fn(async () => ({ executable: "java", env: {} })),
   resolveGradleWrapper: vi.fn(async () => ({ executable: "gradle", env: {} })),
   bootstrapGradleWrapper: vi.fn(async () => ({ executable: "gradle", env: {} })),
+  resolveMavenWrapper: vi.fn(async () => ({ executable: "mvn", env: {} })),
+  bootstrapMavenWrapper: vi.fn(async () => ({ executable: "mvn", env: {} })),
 }));
 
 vi.mock("node:child_process", () => ({

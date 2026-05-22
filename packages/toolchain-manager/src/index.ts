@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, rmSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { platform as osPlatform, arch as osArch, homedir } from "node:os";
-import { execFileSync, execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { get as httpsGet } from "node:https";
 import { createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
@@ -20,7 +20,15 @@ export interface ToolchainStatus {
   readonly toolName: ToolName;
   readonly installed: boolean;
   readonly version: string | null;
+  readonly requestedVersion?: string;
+  readonly path?: string;
   readonly issues: ReadonlyArray<string>;
+}
+
+interface ExecResult {
+  readonly command: string;
+  readonly path: string;
+  readonly output: string;
 }
 
 function toolchainsDir(): string {
@@ -31,10 +39,90 @@ function toolchainsDir(): string {
   return join(h, ".local", "share", "mc-forgelab", "toolchains");
 }
 
+function outputToString(output: string | Buffer | null | undefined): string {
+  if (typeof output === "string") return output;
+  return output?.toString("utf8") ?? "";
+}
+
+function needsShell(command: string): boolean {
+  return osPlatform() === "win32" && /\.(?:bat|cmd)$/i.test(command);
+}
+
 function tryExec(cmd: string, args: string[]): string | null {
-  // java -version writes to stderr; capture both streams
-  try { return execFileSync(cmd, args, { encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).trim(); }
-  catch (e) { return (e as NodeJS.ErrnoException & { stderr?: string }).stderr?.trim() ?? null; }
+  const result = spawnSync(cmd, args, {
+    encoding: "utf8",
+    shell: needsShell(cmd),
+    timeout: 5000,
+    windowsHide: true
+  });
+  if (result.error || result.status !== 0) return null;
+
+  // java -version writes to stderr; keep both streams for version parsing.
+  const output = [outputToString(result.stdout), outputToString(result.stderr)]
+    .filter((part) => part.trim().length > 0)
+    .join("\n")
+    .trim();
+  return output.length > 0 ? output : null;
+}
+
+function firstLine(output: string | null): string | null {
+  return output?.split(/\r?\n/).find((line) => line.trim().length > 0)?.trim() ?? null;
+}
+
+function commandPath(command: string): string {
+  if (command.includes("/") || command.includes("\\")) return command;
+  const lookup = osPlatform() === "win32" ? tryExec("where.exe", [command]) : tryExec("which", [command]);
+  return firstLine(lookup) ?? command;
+}
+
+function tryExecFirst(commands: ReadonlyArray<string>, args: string[]): ExecResult | null {
+  for (const command of commands) {
+    const output = tryExec(command, args);
+    if (output) return { command, path: commandPath(command), output };
+  }
+  return null;
+}
+
+function parseJavaMajor(output: string | null): number | null {
+  const match = /version\s+"(?:(1)\.)?(\d+)/i.exec(output ?? "");
+  if (!match?.[2]) return null;
+  return Number.parseInt(match[2], 10);
+}
+
+function formatJavaVersion(output: string | null): string | null {
+  const major = parseJavaMajor(output);
+  const line = firstLine(output);
+  if (major !== null && line) return `${major} (${line})`;
+  if (major !== null) return String(major);
+  return line;
+}
+
+function parseGradleVersion(output: string): string | null {
+  return /Gradle\s+([^\s]+)/i.exec(output)?.[1] ?? null;
+}
+
+function parseMavenVersion(output: string): string | null {
+  return /Apache Maven\s+([^\s]+)/i.exec(output)?.[1] ?? null;
+}
+
+function inspectSystemTool(
+  toolName: "gradle" | "maven",
+  commands: ReadonlyArray<string>,
+  args: string[],
+  parseVersion: (output: string) => string | null,
+  missingIssue: string
+): ToolchainStatus {
+  const detected = tryExecFirst(commands, args);
+  if (!detected) return { toolName, installed: false, version: null, issues: [missingIssue] };
+
+  const version = parseVersion(detected.output) ?? firstLine(detected.output);
+  return {
+    toolName,
+    installed: true,
+    version,
+    path: detected.path,
+    issues: version ? [] : [`Unable to parse ${toolName} version.`]
+  };
 }
 
 /** Resolve Java executable — prefers managed toolchain, falls back to system java */
@@ -63,6 +151,23 @@ export async function resolveGradleWrapper(projectDir: string): Promise<Resolved
   const ver = tryExec(sysGradle, ["--version"]);
   if (ver) return { executable: sysGradle, env: {} };
   throw new Error("Gradle wrapper not found and no system gradle available.");
+}
+
+/** Resolve Maven wrapper in project dir, or fall back to system mvn. */
+export async function resolveMavenWrapper(projectDir: string): Promise<ResolvedTool> {
+  const wrapper = osPlatform() === "win32" ? join(projectDir, "mvnw.cmd") : join(projectDir, "mvnw");
+  if (existsSync(wrapper)) {
+    if (osPlatform() === "win32") return { executable: "cmd.exe", env: {}, args: ["/d", "/s", "/c", wrapper] };
+    return { executable: wrapper, env: {} };
+  }
+  const detected = tryExecFirst(osPlatform() === "win32" ? ["mvn.cmd", "mvn"] : ["mvn"], ["--version"]);
+  if (detected) {
+    if (osPlatform() === "win32" && /\.(?:bat|cmd)$/i.test(detected.command)) {
+      return { executable: "cmd.exe", env: {}, args: ["/d", "/s", "/c", detected.command] };
+    }
+    return { executable: detected.command, env: {} };
+  }
+  throw new Error("Maven wrapper not found and no system mvn available.");
 }
 
 interface AdoptiumBinary {
@@ -246,6 +351,73 @@ export async function bootstrapGradleWrapper(projectDir: string, version = "8.8"
   return { executable: wrapperPath, env: {} };
 }
 
+const MAVEN_WRAPPER_JAR_URL = "https://dlcdn.apache.org/maven/mvnd/maven-wrapper/maven-wrapper/0.5.6/maven-wrapper-0.5.6.jar";
+
+/**
+ * Bootstrap Maven wrapper in a project directory.
+ * Skips if mvnw already exists.
+ */
+export async function bootstrapMavenWrapper(projectDir: string, version = "3.9.9", opts: DownloadJdkOptions = {}): Promise<ResolvedTool> {
+  const log = opts.onProgress ?? (() => {});
+  const wrapperScript = osPlatform() === "win32" ? "mvnw.cmd" : "mvnw";
+  const wrapperPath = join(projectDir, wrapperScript);
+  if (existsSync(wrapperPath)) {
+    if (osPlatform() === "win32") return { executable: "cmd.exe", env: {}, args: ["/d", "/s", "/c", wrapperPath] };
+    return { executable: wrapperPath, env: {} };
+  }
+  const wrapperDir = join(projectDir, ".mvn", "wrapper");
+  const wrapperJar = join(wrapperDir, "maven-wrapper.jar");
+  const wrapperProps = join(wrapperDir, "maven-wrapper.properties");
+  mkdirSync(wrapperDir, { recursive: true });
+  if (!existsSync(wrapperJar)) {
+    log("Downloading Maven wrapper...");
+    await downloadFile(MAVEN_WRAPPER_JAR_URL, wrapperJar);
+  }
+  const { writeFileSync: writeFile, chmodSync } = await import("node:fs");
+  if (!existsSync(wrapperProps)) {
+    writeFile(wrapperProps, [
+      `distributionUrl=https\\://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/${version}/apache-maven-${version}-bin.zip`,
+      `wrapperUrl=${MAVEN_WRAPPER_JAR_URL}`,
+      ``,
+    ].join("\n"));
+  }
+  if (osPlatform() === "win32") {
+    writeFile(wrapperPath, MVNW_CMD);
+  } else {
+    writeFile(wrapperPath, MVNW_SH);
+    chmodSync(wrapperPath, 0o755);
+  }
+  log(`Maven wrapper ${version} bootstrapped in ${projectDir}`);
+  if (osPlatform() === "win32") return { executable: "cmd.exe", env: {}, args: ["/d", "/s", "/c", wrapperPath] };
+  return { executable: wrapperPath, env: {} };
+}
+
+const MVNW_SH = `#!/bin/sh
+# Maven startup script for POSIX generated by ForgeLab
+DIRNAME=\$(dirname "\$0")
+APP_HOME=\$(cd "\$DIRNAME" && pwd -P) || exit
+MAVEN_PROJECTBASEDIR=\${MAVEN_BASEDIR:-"\$APP_HOME"}
+WRAPPER_JAR="\$APP_HOME/.mvn/wrapper/maven-wrapper.jar"
+if [ ! -f "\$WRAPPER_JAR" ]; then
+  echo "maven-wrapper.jar not found. Run: mcforgelab toolchain install maven"
+  exit 1
+fi
+exec java \$MAVEN_OPTS "-Dmaven.multiModuleProjectDirectory=\$MAVEN_PROJECTBASEDIR" -classpath "\$WRAPPER_JAR" org.apache.maven.wrapper.MavenWrapperMain "\$@"
+`;
+
+const MVNW_CMD = `@rem Maven startup script for Windows generated by ForgeLab
+@if "%DEBUG%"=="" @echo off
+set DIRNAME=%~dp0
+set APP_HOME=%DIRNAME%
+set MAVEN_PROJECTBASEDIR=%APP_HOME%
+set WRAPPER_JAR=%APP_HOME%\\.mvn\\wrapper\\maven-wrapper.jar
+if not exist "%WRAPPER_JAR%" (
+  echo maven-wrapper.jar not found. Run: mcforgelab toolchain install maven
+  exit /b 1
+)
+java %MAVEN_OPTS% "-Dmaven.multiModuleProjectDirectory=%MAVEN_PROJECTBASEDIR%" -classpath "%WRAPPER_JAR%" org.apache.maven.wrapper.MavenWrapperMain %*
+`;
+
 const GRADLEW_SH = `#!/bin/sh
 # Gradle start up script for POSIX generated by ForgeLab
 APP_NAME="Gradle"
@@ -280,14 +452,78 @@ java %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BAS
 
 export async function doctor(): Promise<ReadonlyArray<ToolchainStatus>> {
   const results: ToolchainStatus[] = [];
+  const systemJava = tryExecFirst([osPlatform() === "win32" ? "java.exe" : "java"], ["-version"]);
+  const systemJavaMajor = parseJavaMajor(systemJava?.output ?? null);
+
   for (const v of [8, 11, 17, 21] as const) {
-    try {
-      const t = await resolveJava(v);
-      const ver = tryExec(t.executable, ["-version"]);
-      results.push({ toolName: "java", installed: true, version: ver?.split("\n")[0] ?? null, issues: [] });
-    } catch (e) {
-      results.push({ toolName: "java", installed: false, version: null, issues: [(e as Error).message] });
+    const managed = join(toolchainsDir(), `jdk-${v}`, "bin", osPlatform() === "win32" ? "java.exe" : "java");
+    if (existsSync(managed)) {
+      const versionOutput = tryExec(managed, ["-version"]);
+      const major = parseJavaMajor(versionOutput);
+      const issues: string[] = [];
+      if (!versionOutput) {
+        issues.push(`Managed JDK ${v} exists but could not be executed.`);
+      } else if (major !== v) {
+        issues.push(`Managed JDK ${v} reports Java ${major ?? "unknown"}.`);
+      }
+
+      results.push({
+        toolName: "java",
+        requestedVersion: String(v),
+        installed: versionOutput !== null && major === v,
+        version: formatJavaVersion(versionOutput),
+        path: managed,
+        issues
+      });
+      continue;
     }
+
+    if (systemJava) {
+      if (systemJavaMajor === v) {
+        results.push({
+          toolName: "java",
+          requestedVersion: String(v),
+          installed: true,
+          version: formatJavaVersion(systemJava.output),
+          path: systemJava.path,
+          issues: [`Managed JDK ${v} not installed; using system Java fallback.`]
+        });
+      } else {
+        results.push({
+          toolName: "java",
+          requestedVersion: String(v),
+          installed: false,
+          version: formatJavaVersion(systemJava.output),
+          path: systemJava.path,
+          issues: [`Managed JDK ${v} not installed; system Java is ${systemJavaMajor ?? "unknown"}.`]
+        });
+      }
+      continue;
+    }
+
+    results.push({
+      toolName: "java",
+      requestedVersion: String(v),
+      installed: false,
+      version: null,
+      issues: [`Java ${v} not found. Install via: mcforgelab toolchain install java --version ${v}`]
+    });
   }
+
+  results.push(inspectSystemTool(
+    "gradle",
+    osPlatform() === "win32" ? ["gradle", "gradle.bat"] : ["gradle"],
+    ["--version"],
+    parseGradleVersion,
+    "Gradle not found. Install Gradle or add it to PATH."
+  ));
+  results.push(inspectSystemTool(
+    "maven",
+    osPlatform() === "win32" ? ["mvn", "mvn.cmd"] : ["mvn"],
+    ["--version"],
+    parseMavenVersion,
+    "Maven not found. Install Maven or add it to PATH."
+  ));
+
   return results;
 }

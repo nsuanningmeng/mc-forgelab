@@ -62,8 +62,13 @@ window.MCFL.api = (() => {
     // Knowledge Base
     knowledgeMatrix: () => request("GET", "/api/knowledge/matrix"),
     knowledgeSearch: (params) => {
-      const qs = new URLSearchParams(params).toString();
-      return request("GET", `/api/knowledge/search?${qs}`);
+      var filtered = {};
+      for (var k in (params || {})) {
+        var v = params[k];
+        if (v !== null && v !== undefined && v !== "") filtered[k] = v;
+      }
+      var qs = new URLSearchParams(filtered).toString();
+      return request("GET", "/api/knowledge/search" + (qs ? "?" + qs : ""));
     },
 
     // Artifacts
@@ -77,6 +82,10 @@ window.MCFL.api = (() => {
     deleteProvider: (id) => request("DELETE", `/api/ai/providers/${id}`),
     testProvider: (id) => request("POST", `/api/ai/providers/${id}/test`),
     providerModels: (id) => request("GET", `/api/ai/providers/${id}/models`),
+
+    // Proxy Settings
+    getProxy: () => request("GET", "/api/settings/proxy"),
+    updateProxy: (body) => request("PATCH", "/api/settings/proxy", body),
 
     // Model profiles
     modelProfiles: () => request("GET", "/api/ai/model-profiles"),

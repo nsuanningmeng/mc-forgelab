@@ -179,6 +179,7 @@ window.MCFL = window.MCFL || {};
               <>
                 <button
                   onClick={handleExportChat}
+                  data-testid="export-chat-btn"
                   className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold text-tx3 hover:text-mc hover:bg-mc/10 rounded transition-colors uppercase tracking-tight"
                   title={t.ws?.exportChat || "Export Chat"}
                 >

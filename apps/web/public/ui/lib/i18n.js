@@ -57,6 +57,10 @@ window.MCFL.LANGS = {
       status: "状态",
       type: "类型",
       time: "时间",
+      showMore: "展开更多",
+      showLess: "收起",
+      saving: "保存中…",
+      removeFilter: "移除筛选 {name}",
     },
 
     system: {
@@ -182,6 +186,10 @@ window.MCFL.LANGS = {
       noResults: "未找到匹配的知识条目。",
       tags: "标签",
       related: "相关条目",
+      welcomeTitle: "探索 Minecraft 开发知识",
+      welcomeSubtitle: "搜索知识条目、代码片段或 API 指南，覆盖 Paper、Spigot、Forge、Fabric 等目标平台。",
+      foundResults: "找到 {n} 个匹配结果",
+      browseLabel: "浏览 {type}",
     },
 
     tc: {
@@ -286,6 +294,20 @@ window.MCFL.LANGS = {
       dark: "深色",
       light: "浅色",
       system: "跟随系统",
+      proxy: {
+        notConfigured: "未配置",
+        configured: "已配置",
+        httpProxy: "HTTP 代理",
+        httpPort: "端口",
+        httpsProxy: "HTTPS 代理",
+        httpsPort: "端口",
+        username: "用户名",
+        password: "密码",
+        noProxy: "NO_PROXY (逗号分隔)",
+        clear: "清除",
+        testProxy: "测试代理",
+        auth: "认证",
+      },
       profiles: {
         title: "模型配置",
         empty: "暂无模型配置。点击下方按钮添加。",
@@ -401,6 +423,10 @@ window.MCFL.LANGS = {
       status: "Status",
       type: "Type",
       time: "Time",
+      showMore: "Show More",
+      showLess: "Show Less",
+      saving: "Saving…",
+      removeFilter: "Remove filter {name}",
     },
 
     system: {
@@ -526,6 +552,10 @@ window.MCFL.LANGS = {
       noResults: "No matching knowledge entries found.",
       tags: "Tags",
       related: "Related Entries",
+      welcomeTitle: "Explore Minecraft Dev Knowledge",
+      welcomeSubtitle: "Search knowledge entries, code snippets or API guides across Paper, Spigot, Forge, Fabric and more.",
+      foundResults: "{n} results found",
+      browseLabel: "Browse {type}",
     },
 
     tc: {
@@ -634,6 +664,20 @@ window.MCFL.LANGS = {
       dark: "Dark",
       light: "Light",
       system: "System",
+      proxy: {
+        notConfigured: "Not configured",
+        configured: "Configured",
+        httpProxy: "HTTP Proxy",
+        httpPort: "Port",
+        httpsProxy: "HTTPS Proxy",
+        httpsPort: "Port",
+        username: "Username",
+        password: "Password",
+        noProxy: "NO_PROXY (comma separated)",
+        clear: "Clear",
+        testProxy: "Test Proxy",
+        auth: "Authentication",
+      },
       profiles: {
         title: "Model profiles",
         empty: "No model profiles configured. Click below to add one.",

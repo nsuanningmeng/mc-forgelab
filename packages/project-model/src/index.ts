@@ -1,3 +1,6 @@
+export { detectGradleJavaVersion } from "./java-version.js";
+export type { JavaVersionDetection, SupportedJavaVersion } from "./java-version.js";
+
 export type ProjectType = "plugin" | "mod" | "proxy" | "hybrid";
 
 export interface ProjectFeatures {

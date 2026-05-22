@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import staticFiles from "@fastify/static";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { openStorage, BASE_MIGRATIONS, STAGE6_MIGRATIONS } from "@mc-forgelab/storage";
 import { STAGE2_MIGRATIONS, createProviderManager } from "@mc-forgelab/ai-provider-manager";
@@ -22,12 +23,21 @@ import { registerTargetRoutes } from "./routes/targets.js";
 import { registerKnowledgeRoutes } from "./routes/knowledge.js";
 import { registerAuditRoutes } from "./routes/audit.js";
 import { registerSettingsRoutes, getWorkspaceSettings } from "./routes/settings.js";
+import { verifyPassword } from "./lib/password.js";
+import { registerProxyRoutes } from "./routes/proxy.js";
 import { createBuildRegistry } from "./lib/build-registry.js";
 import { createAuditLogger, STAGE_WEB_MIGRATIONS } from "./lib/audit.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_VERSION = readPackageVersion();
 const MAX_RAW_PATCH_BYTES = 1024 * 1024;
+const ADMIN_PASSWORD_HASH_KEY = "auth.adminPasswordHash";
+
+function safeEqualString(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
 
 function errorMessage(error: unknown): string {
   if (error instanceof AppError) return error.messageEn;
@@ -217,14 +227,21 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     if (!cfg.auth.enabled) return;
     const auth = req.headers.authorization ?? "";
     const [, b64] = auth.split(" ");
-    const [user, pass] = Buffer.from(b64 ?? "", "base64").toString().split(":");
+    const decoded = Buffer.from(b64 ?? "", "base64").toString();
+    const separator = decoded.indexOf(":");
+    const user = separator >= 0 ? decoded.slice(0, separator) : "";
+    const pass = separator >= 0 ? decoded.slice(separator + 1) : "";
     const expectedUser = cfg.auth.adminUser ?? "";
-    const expectedPass = process.env.MC_FORGELAB_ADMIN_PASSWORD ?? "";
-    const { timingSafeEqual } = await import("node:crypto");
-    const ok = user?.length === expectedUser.length && pass?.length === expectedPass.length
-      && timingSafeEqual(Buffer.from(user), Buffer.from(expectedUser))
-      && timingSafeEqual(Buffer.from(pass), Buffer.from(expectedPass));
-    if (!ok) return reply.status(401).header("WWW-Authenticate", 'Basic realm="MC-AI-ForgeLab"').send({ error: "Unauthorized" });
+    const userOk = expectedUser.length > 0 && safeEqualString(user, expectedUser);
+    if (!userOk) return reply.status(401).header("WWW-Authenticate", 'Basic realm="MC-AI-ForgeLab"').send({ error: "Unauthorized" });
+    const storedHash = storage.getSetting(ADMIN_PASSWORD_HASH_KEY);
+    const envPassword = process.env.MC_FORGELAB_ADMIN_PASSWORD;
+    const passOk = storedHash
+      ? await verifyPassword(pass, storedHash)
+      : envPassword
+        ? safeEqualString(pass, envPassword)
+        : false;
+    if (!passOk) return reply.status(401).header("WWW-Authenticate", 'Basic realm="MC-AI-ForgeLab"').send({ error: "Unauthorized" });
   });
   await app.register(staticFiles, { root: join(__dirname, "..", "public"), prefix: "/", decorateReply: false });
 
@@ -244,6 +261,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   await registerKnowledgeRoutes(app);
   await registerAuditRoutes(app, ctx);
   await registerSettingsRoutes(app, ctx);
+  await registerProxyRoutes(app, ctx);
   app.get("/api/health", async () => {
     const ws = getWorkspaceSettings(ctx);
     return {

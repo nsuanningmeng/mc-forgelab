@@ -72,11 +72,45 @@ function createWindow(url: string): void {
 function checkForUpdates(): void {
   if (isHeadless || updateCheckStarted || !app.isPackaged) return;
   updateCheckStarted = true;
+  autoUpdater.setFeedURL({ provider: "github", owner: "nsuanningmeng", repo: "mc-forgelab" });
+  autoUpdater.autoDownload = false;
   autoUpdater.on("error", (err) => {
     log.warn("Electron auto-update error", { error: err instanceof Error ? err.message : String(err) });
   });
+  autoUpdater.on("update-available", () => {
+    void dialog.showMessageBox({
+      type: "info",
+      title: "Update available",
+      message: "A new MC ForgeLab version is available.",
+      detail: "Download the update now?",
+      buttons: ["Download", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    }).then(({ response }) => {
+      if (response === 0) {
+        void autoUpdater.downloadUpdate().catch((err: unknown) => {
+          log.warn("Electron auto-update download failed", { error: err instanceof Error ? err.message : String(err) });
+        });
+      }
+    });
+  });
+  autoUpdater.on("update-downloaded", () => {
+    void dialog.showMessageBox({
+      type: "info",
+      title: "Update ready",
+      message: "The MC ForgeLab update has been downloaded.",
+      detail: "Restart now to install it?",
+      buttons: ["Restart", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.quitAndInstall();
+    });
+  });
   try {
-    void autoUpdater.checkForUpdatesAndNotify().catch((err: unknown) => {
+    void autoUpdater.checkForUpdates().catch((err: unknown) => {
       log.warn("Electron auto-update check failed", { error: err instanceof Error ? err.message : String(err) });
     });
   } catch (err) {
