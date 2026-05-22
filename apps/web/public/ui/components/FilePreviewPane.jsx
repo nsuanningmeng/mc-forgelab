@@ -45,7 +45,7 @@ window.MCFL = window.MCFL || {};
               ))}
             </div>
             {/* Code content */}
-            <pre className="flex-1 p-3 whitespace-pre-wrap break-all text-tx1">
+            <pre data-testid="file-preview-content" className="flex-1 p-3 whitespace-pre-wrap break-all text-tx1">
               {content || <span className="text-tx3 italic">/* {t.ws.patchEmpty} */</span>}
             </pre>
           </div>

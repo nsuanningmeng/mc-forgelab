@@ -48,6 +48,33 @@ function needsShell(command: string): boolean {
   return osPlatform() === "win32" && /\.(?:bat|cmd)$/i.test(command);
 }
 
+export interface ExecAttempt {
+  readonly cmd: string;
+  readonly ok: boolean;
+  readonly status: number | null;
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly error: string | null;
+}
+
+function tryExecFull(cmd: string, args: string[]): ExecAttempt {
+  const result = spawnSync(cmd, args, {
+    encoding: "utf8",
+    shell: needsShell(cmd),
+    timeout: 5000,
+    windowsHide: true
+  });
+  const stdout = outputToString(result.stdout);
+  const stderr = outputToString(result.stderr);
+  if (result.error) {
+    return { cmd, ok: false, status: null, stdout, stderr, error: result.error.message };
+  }
+  if (result.status !== 0) {
+    return { cmd, ok: false, status: result.status, stdout, stderr, error: `exit code ${result.status}` };
+  }
+  return { cmd, ok: true, status: 0, stdout, stderr, error: null };
+}
+
 function tryExec(cmd: string, args: string[]): string | null {
   const result = spawnSync(cmd, args, {
     encoding: "utf8",
@@ -57,7 +84,6 @@ function tryExec(cmd: string, args: string[]): string | null {
   });
   if (result.error || result.status !== 0) return null;
 
-  // java -version writes to stderr; keep both streams for version parsing.
   const output = [outputToString(result.stdout), outputToString(result.stderr)]
     .filter((part) => part.trim().length > 0)
     .join("\n")
@@ -112,10 +138,24 @@ function inspectSystemTool(
   parseVersion: (output: string) => string | null,
   missingIssue: string
 ): ToolchainStatus {
-  const detected = tryExecFirst(commands, args);
-  if (!detected) return { toolName, installed: false, version: null, issues: [missingIssue] };
-
-  const version = parseVersion(detected.output) ?? firstLine(detected.output);
+  let lastAttempt: ExecAttempt | null = null;
+  for (const command of commands) {
+    const attempt = tryExecFull(command, args);
+    if (attempt.ok) {
+      const output = [attempt.stdout, attempt.stderr].filter((p) => p.trim().length > 0).join("\n").trim();
+      const version = parseVersion(output) ?? firstLine(output);
+      return {
+        toolName,
+        installed: true,
+        version,
+        path: commandPath(command),
+        issues: version ? [] : [`Unable to parse ${toolName} version.`]
+      };
+    }
+    lastAttempt = attempt;
+  }
+  const detail = lastAttempt?.error ?? missingIssue;
+  return { toolName, installed: false, version: null, issues: [detail] };
   return {
     toolName,
     installed: true,

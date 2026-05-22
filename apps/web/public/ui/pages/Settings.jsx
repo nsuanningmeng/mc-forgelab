@@ -433,7 +433,7 @@ window.MCFL = window.MCFL || {};
                 <div className="grid grid-cols-3 gap-2">
                   <div className="col-span-2">
                     <label className="text-2xs text-tx3 mb-1 block">{t.settings.proxy.httpProxy}</label>
-                    <input type="text" value={proxyDraft.http} onChange={e => setProxyDraft({...proxyDraft, http: e.target.value})} className={cx.j(cx.input, "w-full")} placeholder="proxy.example.com" />
+                    <input data-testid="proxy-http-input" type="text" value={proxyDraft.http} onChange={e => setProxyDraft({...proxyDraft, http: e.target.value})} className={cx.j(cx.input, "w-full")} placeholder="proxy.example.com" />
                   </div>
                   <div>
                     <label className="text-2xs text-tx3 mb-1 block">{t.settings.proxy.httpPort}</label>
@@ -465,8 +465,8 @@ window.MCFL = window.MCFL || {};
                   <textarea value={proxyDraft.noProxy} onChange={e => setProxyDraft({...proxyDraft, noProxy: e.target.value})} className={cx.j(cx.input, "w-full h-16 resize-none")} placeholder="localhost, 127.0.0.1, .internal.company.com" />
                 </div>
                 <div className="flex gap-2 justify-end">
-                  <button onClick={() => setEditingProxy(false)} className={cx.btnGhost}>{t.common.cancel}</button>
-                  <button onClick={handleSaveProxy} disabled={busy === 'proxy'} className={cx.btnPrimary}>
+                  <button data-testid="proxy-cancel-btn" onClick={() => setEditingProxy(false)} className={cx.btnGhost}>{t.common.cancel}</button>
+                  <button data-testid="proxy-save-btn" onClick={handleSaveProxy} disabled={busy === 'proxy'} className={cx.btnPrimary}>
                     {busy === 'proxy' ? t.common.saving : t.common.save}
                   </button>
                 </div>
@@ -496,7 +496,7 @@ window.MCFL = window.MCFL || {};
                   </div>
                 )}
                 <div className="flex justify-end mt-1">
-                  <button onClick={() => setEditingProxy(true)} className={cx.btnSecondary}>
+                  <button data-testid="proxy-edit-btn" onClick={() => setEditingProxy(true)} className={cx.btnSecondary}>
                     {t.common.edit}
                   </button>
                 </div>

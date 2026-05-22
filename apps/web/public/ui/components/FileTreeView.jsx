@@ -48,6 +48,7 @@ window.MCFL = window.MCFL || {};
         <div key={node.path || "root"}>
           {node.name !== "root" && (
             <div
+              data-testid={`file-item-${node.name}`}
               onClick={() => isFolder ? toggle(node.path) : onSelect(node.path)}
               className={cx.j(
                 "flex items-center gap-2 px-2 py-1 text-xs cursor-pointer rounded hover:bg-elevated transition-colors",

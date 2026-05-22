@@ -286,7 +286,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
 }
 
 if (process.argv[1]?.endsWith("server.ts") || process.argv[1]?.endsWith("server.js")) {
-  const cfg = loadConfig();
+  const cfg = loadConfig({ mode: "web" });
   const { app } = await buildApp({ cfg });
   await app.listen({ host: cfg.host, port: cfg.port });
 }
