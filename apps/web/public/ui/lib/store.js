@@ -2,6 +2,42 @@ window.MCFL = window.MCFL || {};
 (function () {
   const { api } = window.MCFL;
 
+  function extractFileOps(text) {
+    if (!text || typeof text !== 'string') return null;
+    const startIdx = text.search(/\[\s*\{\s*"op"\s*:\s*"(?:create|update|delete)"/);
+    if (startIdx === -1) return null;
+
+    let depth = 0;
+    let inString = false;
+    let esc = false;
+    let endIdx = -1;
+    for (let i = startIdx; i < text.length; i++) {
+      const ch = text[i];
+      if (esc) { esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === '[' || ch === '{') depth++;
+      else if (ch === ']' || ch === '}') {
+        depth--;
+        if (depth === 0) { endIdx = i + 1; break; }
+      }
+    }
+    if (endIdx === -1) return null;
+
+    try {
+      const files = JSON.parse(text.slice(startIdx, endIdx));
+      if (!Array.isArray(files) || !files.every(f => f && typeof f.op === 'string' && typeof f.path === 'string')) return null;
+      return {
+        before: text.slice(0, startIdx).trim(),
+        files,
+        after: text.slice(endIdx).trim()
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
   class Store {
     constructor() {
       this.state = {
@@ -181,7 +217,21 @@ window.MCFL = window.MCFL || {};
 
           case 'run_finished':
             if (currentText) {
-              this.dispatch('ADD_MESSAGE', { role: 'assistant', type: 'text', content: currentText });
+              const extracted = extractFileOps(currentText);
+              if (extracted) {
+                if (extracted.before) {
+                  this.dispatch('ADD_MESSAGE', { role: 'assistant', type: 'text', content: extracted.before });
+                }
+                this.dispatch('ADD_MESSAGE', { role: 'assistant', type: 'files', content: extracted.files });
+                if (extracted.after) {
+                  const cleaned = extracted.after.replace(/^[}\]]?\s*/, '');
+                  if (cleaned) {
+                    this.dispatch('ADD_MESSAGE', { role: 'assistant', type: 'text', content: cleaned });
+                  }
+                }
+              } else {
+                this.dispatch('ADD_MESSAGE', { role: 'assistant', type: 'text', content: currentText });
+              }
             }
             this.dispatch('UPDATE_STREAMING', null);
             this.dispatch('SET_WORKFLOW_STATUS', event.status === 'success' ? 'success' : event.status);
