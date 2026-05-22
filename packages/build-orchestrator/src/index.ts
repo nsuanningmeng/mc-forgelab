@@ -3,7 +3,7 @@ import { createWriteStream, mkdirSync } from "node:fs";
 import { join, dirname, relative, isAbsolute } from "node:path";
 import { randomUUID } from "node:crypto";
 import { resolveInsideBase } from "@mc-forgelab/file-operation";
-import { resolveJava, resolveGradleWrapper } from "@mc-forgelab/toolchain-manager";
+import { resolveJavaWithAutoDownload, resolveGradleWrapper } from "@mc-forgelab/toolchain-manager";
 
 export type BuildStatus = "queued" | "running" | "success" | "failed" | "canceled";
 
@@ -46,7 +46,7 @@ export async function runBuild(
 
   const javaVersion = opts.javaVersion ?? 17;
   const [java, gradle] = await Promise.all([
-    resolveJava(javaVersion),
+    resolveJavaWithAutoDownload(javaVersion, { onProgress: (msg) => onLog(`[toolchain] ${msg}`) }),
     resolveGradleWrapper(opts.projectPath)
   ]);
 

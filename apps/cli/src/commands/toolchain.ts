@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import pc from "picocolors";
-import { doctor } from "@mc-forgelab/toolchain-manager";
+import { doctor, downloadJdk } from "@mc-forgelab/toolchain-manager";
 import type { ProgramContext } from "../program.js";
 
 export function registerToolchainCommands(program: Command, ctx: ProgramContext): void {
@@ -28,5 +28,26 @@ export function registerToolchainCommands(program: Command, ctx: ProgramContext)
       const statuses = await doctor();
       const ok = statuses.every(s => s.installed);
       ctx.stdout.write(ok ? pc.green("所有工具链正常。\n") : pc.yellow("部分工具链缺失，请检查上方输出。\n"));
+    });
+
+  tc.command("install")
+    .description("下载并安装 JDK / download and install JDK")
+    .requiredOption("--version <version>", "JDK version (8, 11, 17, 21)")
+    .action(async (opts: { version: string }) => {
+      const version = Number(opts.version) as 8 | 11 | 17 | 21;
+      if (![8, 11, 17, 21].includes(version)) {
+        ctx.stderr.write(pc.red("版本必须是 8, 11, 17 或 21\n"));
+        process.exit(1);
+      }
+      ctx.stdout.write(pc.cyan(`正在下载 JDK ${version}...\n`));
+      try {
+        const tool = await downloadJdk(version, {
+          onProgress: (msg) => ctx.stdout.write(`  ${msg}\n`),
+        });
+        ctx.stdout.write(pc.green(`✓ JDK ${version} 已安装: ${tool.executable}\n`));
+      } catch (e) {
+        ctx.stderr.write(pc.red(`安装失败: ${(e as Error).message}\n`));
+        process.exit(1);
+      }
     });
 }

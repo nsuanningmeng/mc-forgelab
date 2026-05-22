@@ -7,6 +7,7 @@ import { runBuild } from "./index.js";
 
 vi.mock("@mc-forgelab/toolchain-manager", () => ({
   resolveJava: vi.fn(async () => ({ executable: "java", env: {} })),
+  resolveJavaWithAutoDownload: vi.fn(async () => ({ executable: "java", env: {} })),
   resolveGradleWrapper: vi.fn(async () => ({ executable: "gradle", env: {} })),
 }));
 
