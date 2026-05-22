@@ -68,7 +68,7 @@ window.MCFL = window.MCFL || {};
 
           <div className="flex flex-col gap-1 min-w-0">
             <div className={cx.j(
-              "px-4 py-3 rounded-2xl text-sm",
+              "px-4 py-3 rounded-2xl text-sm font-medium",
               isUser ? "bg-gray-100 dark:bg-neutral-800 text-tx1 rounded-tr-sm" : "bg-transparent text-tx1 px-0 py-0"
             )}>
               {message.type === 'files' ? (

@@ -10,6 +10,7 @@ window.MCFL = window.MCFL || {};
     const [newProjectName, setNewProjectName] = useState('');
     const scrollRef = useRef(null);
     const isNearBottomRef = useRef(true);
+    const userScrolledUpRef = useRef(false);
     const isCreatingRef = useRef(false);
 
     useEffect(() => {
@@ -26,7 +27,7 @@ window.MCFL = window.MCFL || {};
     }, []);
 
     useEffect(() => {
-      if (scrollRef.current && isNearBottomRef.current) {
+      if (scrollRef.current && !userScrolledUpRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       }
     }, [state.messages, state.streamingMessage]);
@@ -34,7 +35,14 @@ window.MCFL = window.MCFL || {};
     const handleScroll = () => {
       if (!scrollRef.current) return;
       const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-      isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 100;
+      const distFromBottom = scrollHeight - scrollTop - clientHeight;
+      if (distFromBottom <= 4) {
+        userScrolledUpRef.current = false;
+        isNearBottomRef.current = true;
+      } else if (distFromBottom > 60) {
+        userScrolledUpRef.current = true;
+        isNearBottomRef.current = false;
+      }
     };
 
     const deriveProjectName = (prompt) => {
