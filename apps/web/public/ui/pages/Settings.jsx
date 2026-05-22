@@ -207,7 +207,7 @@ window.MCFL = window.MCFL || {};
             </div>
           </Section>
 
-          <Section title={t.settings.groups.workspace} description={desc.workspace} badge={<StatusBadge variant="planned" label={t.planned} />}>
+          <Section title={t.settings.groups.workspace} description={desc.workspace} badge={<StatusBadge variant="success" label={t.common.status || "active"} />}>
             <div className="flex flex-col gap-2">
               <div className="flex justify-between"><span>Default Path</span><span className={cx.mono}>/opt/mc-forgelab</span></div>
               <div className="flex justify-between"><span>Quota</span><span>10 GB</span></div>

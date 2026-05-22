@@ -36,7 +36,7 @@ window.MCFL = window.MCFL || {};
             label={providerOk ? "online" : "not configured"}
           />
           <span className="uppercase tracking-wider text-tx3 ml-2">{t.topbar.buildQueue}:</span>
-          <StatusBadge variant="planned" label={buildQueue ?? "idle"} dot={false} />
+          <StatusBadge variant="success" label={buildQueue ?? "idle"} dot={false} />
         </div>
 
         <div className="flex items-center gap-1 ml-2">
