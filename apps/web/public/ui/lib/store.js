@@ -56,7 +56,7 @@ window.MCFL = window.MCFL || {};
     }
 
     notify() {
-      this.listeners.forEach((fn) => fn(this.state));
+      this.listeners.forEach((fn) => fn({ ...this.state }));
     }
 
     dispatch(action, payload) {
