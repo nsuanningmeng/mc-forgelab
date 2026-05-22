@@ -4,9 +4,12 @@ import { test, expect } from '@playwright/test';
 // (set by apps/web/public/ui/lib/theme.js) — NOT a class. localStorage key
 // is "mcfl.theme". Default theme is dark (see apps/web/public/index.html).
 test.describe('Theme Toggle Persistence', () => {
-  test.skip(true, 'Theme toggle timing issue in headless — needs investigation');
   test('switching to light persists across reload', async ({ page }) => {
     await page.goto('/');
+
+    // Wait for Babel Standalone to process scripts and initialize MCFL namespace
+    await page.waitForFunction(() => window['MCFL'] && window['MCFL'].theme, { timeout: 15000 });
+
     const html = page.locator('html');
 
     // Baseline: dark by default.
@@ -27,6 +30,7 @@ test.describe('Theme Toggle Persistence', () => {
 
     // Persist across reload.
     await page.reload();
+    await page.waitForFunction(() => window['MCFL'] && window['MCFL'].theme, { timeout: 15000 });
     await expect(html).toHaveAttribute('data-theme', 'light');
 
     // Reset for any subsequent tests (workers=1 → shared browser state).

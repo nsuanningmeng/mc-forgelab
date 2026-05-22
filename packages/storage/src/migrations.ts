@@ -108,6 +108,22 @@ export const BASE_MIGRATIONS: ReadonlyArray<Migration> = [
         [new Date().toISOString()]
       );
     }
+  },
+  {
+    id: "0013_build_source_hash",
+    apply(backend) {
+      const buildColumns = backend.all<{ name: string }>("PRAGMA table_info(builds)");
+      const hasSourceHash = buildColumns.some((col) => col.name === "source_hash");
+      if (!hasSourceHash) {
+        backend.exec("ALTER TABLE builds ADD COLUMN source_hash TEXT");
+      }
+
+      backend.exec(`
+        CREATE INDEX IF NOT EXISTS idx_builds_cache_key
+        ON builds(project_id, target_id, minecraft_version, java_version, build_tool, source_hash, status);
+        CREATE INDEX IF NOT EXISTS idx_builds_source_hash ON builds(source_hash);
+      `);
+    }
   }
 ];
 

@@ -27,6 +27,18 @@ window.MCFL = window.MCFL || {};
     return parts;
   }
 
+  function highlightCode(code, lang) {
+    if (!window.hljs) return { html: code, useHtml: false };
+    try {
+      if (lang && window.hljs.getLanguage(lang)) {
+        return { html: window.hljs.highlight(code, { language: lang }).value, useHtml: true };
+      } else if (!lang) {
+        return { html: window.hljs.highlightAuto(code).value, useHtml: true };
+      }
+    } catch (e) { /* fallback to plain text */ }
+    return { html: code, useHtml: false };
+  }
+
   function MarkdownRenderer({ content, isStreaming }) {
     const cache = useRef({ paragraphs: [] });
 
@@ -50,9 +62,15 @@ window.MCFL = window.MCFL || {};
 
         if (line.startsWith('```')) {
           if (currentBlock && currentBlock.type === 'code') {
+            const code = currentBlock.lines.join('\n');
+            const { html, useHtml } = highlightCode(code, currentBlock.lang);
             elements.push(
               <pre key={`cb-${elements.length}`} className="bg-bg-log p-3 rounded-md border border-border overflow-x-auto my-2 mcfl-mono text-xs">
-                <code className="text-tx1">{currentBlock.lines.join('\n')}</code>
+                {useHtml ? (
+                  <code className={`text-tx1 hljs ${currentBlock.lang || ''}`} dangerouslySetInnerHTML={{ __html: html }} />
+                ) : (
+                  <code className="text-tx1">{code}</code>
+                )}
               </pre>
             );
             currentBlock = null;
@@ -89,9 +107,15 @@ window.MCFL = window.MCFL || {};
       }
 
       if (currentBlock && currentBlock.type === 'code') {
+        const code = currentBlock.lines.join('\n');
+        const { html, useHtml } = highlightCode(code, currentBlock.lang);
         elements.push(
           <pre key={`cb-${elements.length}`} className="bg-bg-log p-3 rounded-md border border-border overflow-x-auto my-2 mcfl-mono text-xs">
-            <code className="text-tx1">{currentBlock.lines.join('\n')}</code>
+            {useHtml ? (
+              <code className={`text-tx1 hljs ${currentBlock.lang || ''}`} dangerouslySetInnerHTML={{ __html: html }} />
+            ) : (
+              <code className="text-tx1">{code}</code>
+            )}
           </pre>
         );
       }

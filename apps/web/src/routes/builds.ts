@@ -25,6 +25,8 @@ function serializeBuild(b: {
   finishedAt: string | null;
   errorSummary: string | null;
   lines: string[];
+  sourceHash?: string | null;
+  cachedFromBuildId?: string | null;
   logPath: string | null;
 }) {
   return {
@@ -35,12 +37,14 @@ function serializeBuild(b: {
     finishedAt: b.finishedAt,
     errorSummary: b.errorSummary,
     lineCount: b.lines.length,
+    sourceHash: b.sourceHash ?? null,
+    cachedFromBuildId: b.cachedFromBuildId ?? null,
     logPath: b.logPath,
   };
 }
 
 function isTerminalStatus(status: string): boolean {
-  return status === "success" || status === "failed" || status === "canceled" || status === "interrupted";
+  return status === "success" || status === "failed" || status === "canceled" || status === "interrupted" || status === "cached";
 }
 
 function loadBuildEventRows(ctx: AppContext, buildId: string): BuildEventRow[] {
@@ -89,7 +93,7 @@ export async function registerBuildRoutes(app: FastifyInstance, ctx: AppContext)
     }
   );
 
-  app.post<{ Params: { id: string }; Body?: { javaVersion?: 8 | 11 | 17 | 21 } }>(
+  app.post<{ Params: { id: string }; Body?: { javaVersion?: 8 | 11 | 17 | 21; force?: boolean } }>(
     "/api/projects/:id/builds",
     async (req, reply) => {
       const project = ctx.storage.backend.get<ProjectRow>(
@@ -107,12 +111,13 @@ export async function registerBuildRoutes(app: FastifyInstance, ctx: AppContext)
         ? project.project_path
         : join(workspaceRoot, "projects", project.id);
 
-      const entry = ctx.builds.start({
+      const entry = await ctx.builds.start({
         projectId: req.params.id,
         workspaceRoot,
         projectPath,
         javaVersion,
         logsDir: join(workspaceRoot, "logs"),
+        force: req.body?.force === true,
       });
 
       ctx.auditor.log({

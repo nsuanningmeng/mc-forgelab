@@ -230,6 +230,7 @@ window.MCFL = window.MCFL || {};
             <div className="flex items-center justify-between">
               <span>{t.settings.theme}</span>
               <div className="flex items-center gap-1">
+                <button type="button" data-testid="theme-system" onClick={() => onSetTheme('system')} className={theme === 'system' ? cx.chipActive : cx.chipNeutral}>{t.settings.system}</button>
                 <button type="button" data-testid="theme-dark" onClick={() => onSetTheme('dark')} className={theme === 'dark' ? cx.chipActive : cx.chipNeutral}>{t.settings.dark}</button>
                 <button type="button" data-testid="theme-light" onClick={() => onSetTheme('light')} className={theme === 'light' ? cx.chipActive : cx.chipNeutral}>{t.settings.light}</button>
               </div>
