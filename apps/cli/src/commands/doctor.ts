@@ -12,7 +12,7 @@ import { doctor as inspectToolchains } from "@mc-forgelab/toolchain-manager";
 import type { ToolchainStatus } from "@mc-forgelab/toolchain-manager";
 import type { ProgramContext } from "../program.js";
 
-interface CheckLine {
+export interface CheckLine {
   readonly name: string;
   readonly status: "ok" | "warn" | "miss" | "info";
   readonly detail: string;
@@ -33,7 +33,7 @@ interface ExecResult {
   readonly output: string;
 }
 
-interface NetworkCheck {
+export interface NetworkCheck {
   readonly url: string;
   readonly status: NetworkStatus;
   readonly latencyMs: number;
@@ -91,7 +91,7 @@ export function registerDoctorCommand(program: Command, ctx: ProgramContext): vo
   void CmdCtor;
 }
 
-async function collectChecks(ctx: ProgramContext): Promise<CheckLine[]> {
+export async function collectChecks(ctx: ProgramContext): Promise<CheckLine[]> {
   const lines: CheckLine[] = [];
   const env = ctx.env;
 
@@ -215,7 +215,7 @@ function checkDocker(): DockerStatus {
   };
 }
 
-async function checkNetwork(): Promise<NetworkCheck[]> {
+export async function checkNetwork(): Promise<NetworkCheck[]> {
   const checks = await Promise.allSettled(NETWORK_CHECK_URLS.map((url) => checkNetworkUrl(url)));
   return checks.map((check, index) => {
     if (check.status === "fulfilled") return check.value;
@@ -259,13 +259,13 @@ function checkNetworkUrl(url: string): Promise<NetworkCheck> {
   });
 }
 
-function toolchainName(status: ToolchainStatus): string {
+export function toolchainName(status: ToolchainStatus): string {
   if (status.toolName === "java") return `JDK ${status.requestedVersion ?? ""}`.trim();
   if (status.toolName === "gradle") return "Gradle";
   return "Maven";
 }
 
-function toolchainCheckStatus(status: ToolchainStatus): CheckLine["status"] {
+export function toolchainCheckStatus(status: ToolchainStatus): CheckLine["status"] {
   if (!status.installed) return "miss";
   if (status.issues.length > 0) return "warn";
   return "ok";

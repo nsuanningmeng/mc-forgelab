@@ -6,7 +6,7 @@ const ENCRYPTION_KEY_ENV = "MC_FORGELAB_ENCRYPTION_KEY";
 const ENCRYPTION_PREFIX = "enc:v1:";
 const TEMP_ENCRYPTION_KEY = randomBytes(32);
 
-const SETTING_KEYS = {
+export const PROXY_SETTING_KEYS = {
   http: "proxy.http",
   https: "proxy.https",
   auth: "proxy.auth",
@@ -38,7 +38,7 @@ interface StoredProxyAuth {
 }
 
 type ProxySettingsPatch = Partial<Record<keyof ProxySettings, unknown>>;
-type SettingKey = typeof SETTING_KEYS[keyof typeof SETTING_KEYS];
+type SettingKey = typeof PROXY_SETTING_KEYS[keyof typeof PROXY_SETTING_KEYS];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -147,18 +147,32 @@ function upsertSetting(
 }
 
 export function getProxySettings(ctx: AppContext): ProxySettingsResponse {
-  const http = readEndpoint(ctx.storage.getSetting(SETTING_KEYS.http));
-  const https = readEndpoint(ctx.storage.getSetting(SETTING_KEYS.https));
-  const auth = readAuth(ctx.storage.getSetting(SETTING_KEYS.auth));
+  const runtime = getProxyRuntimeSettings(ctx);
 
   return {
-    http: http.address ?? "",
+    http: runtime.http ?? "",
+    httpPort: runtime.httpPort,
+    https: runtime.https ?? "",
+    httpsPort: runtime.httpsPort,
+    username: runtime.username ?? "",
+    password: Boolean(runtime.password),
+    noProxy: runtime.noProxy ?? "",
+  };
+}
+
+export function getProxyRuntimeSettings(ctx: Pick<AppContext, "storage">): ProxySettings {
+  const http = readEndpoint(ctx.storage.getSetting(PROXY_SETTING_KEYS.http));
+  const https = readEndpoint(ctx.storage.getSetting(PROXY_SETTING_KEYS.https));
+  const auth = readAuth(ctx.storage.getSetting(PROXY_SETTING_KEYS.auth));
+
+  return {
+    http: http.address,
     httpPort: http.port,
-    https: https.address ?? "",
+    https: https.address,
     httpsPort: https.port,
-    username: auth.username ?? "",
-    password: Boolean(auth.password),
-    noProxy: ctx.storage.getSetting(SETTING_KEYS.noProxy) ?? "",
+    username: auth.username,
+    password: auth.password,
+    noProxy: ctx.storage.getSetting(PROXY_SETTING_KEYS.noProxy),
   };
 }
 
@@ -175,37 +189,37 @@ export async function registerProxyRoutes(app: FastifyInstance, ctx: AppContext)
     const updatedKeys: SettingKey[] = [];
     const createdKeys: SettingKey[] = [];
 
-    const currentHttpRaw = ctx.storage.getSetting(SETTING_KEYS.http);
-    const currentHttpsRaw = ctx.storage.getSetting(SETTING_KEYS.https);
-    const currentAuthRaw = ctx.storage.getSetting(SETTING_KEYS.auth);
+    const currentHttpRaw = ctx.storage.getSetting(PROXY_SETTING_KEYS.http);
+    const currentHttpsRaw = ctx.storage.getSetting(PROXY_SETTING_KEYS.https);
+    const currentAuthRaw = ctx.storage.getSetting(PROXY_SETTING_KEYS.auth);
     const currentHttp = readEndpoint(currentHttpRaw);
     const currentHttps = readEndpoint(currentHttpsRaw);
     const currentAuth = readAuth(currentAuthRaw);
 
     if (hasOwn(body, "http") || hasOwn(body, "httpPort")) {
-      upsertSetting(ctx, SETTING_KEYS.http, JSON.stringify({
+      upsertSetting(ctx, PROXY_SETTING_KEYS.http, JSON.stringify({
         address: hasOwn(body, "http") ? (body.http as string).trim() : currentHttp.address,
         port: hasOwn(body, "httpPort") ? body.httpPort as number : currentHttp.port,
       }), currentHttpRaw, updatedKeys, createdKeys);
     }
 
     if (hasOwn(body, "https") || hasOwn(body, "httpsPort")) {
-      upsertSetting(ctx, SETTING_KEYS.https, JSON.stringify({
+      upsertSetting(ctx, PROXY_SETTING_KEYS.https, JSON.stringify({
         address: hasOwn(body, "https") ? (body.https as string).trim() : currentHttps.address,
         port: hasOwn(body, "httpsPort") ? body.httpsPort as number : currentHttps.port,
       }), currentHttpsRaw, updatedKeys, createdKeys);
     }
 
     if (hasOwn(body, "username") || hasOwn(body, "password")) {
-      upsertSetting(ctx, SETTING_KEYS.auth, JSON.stringify({
+      upsertSetting(ctx, PROXY_SETTING_KEYS.auth, JSON.stringify({
         username: hasOwn(body, "username") ? (body.username as string).trim() : currentAuth.username,
         password: encryptPassword(hasOwn(body, "password") ? body.password as string : currentAuth.password),
       }), currentAuthRaw, updatedKeys, createdKeys);
     }
 
     if (hasOwn(body, "noProxy")) {
-      const currentNoProxyRaw = ctx.storage.getSetting(SETTING_KEYS.noProxy);
-      upsertSetting(ctx, SETTING_KEYS.noProxy, (body.noProxy as string).trim(), currentNoProxyRaw, updatedKeys, createdKeys);
+      const currentNoProxyRaw = ctx.storage.getSetting(PROXY_SETTING_KEYS.noProxy);
+      upsertSetting(ctx, PROXY_SETTING_KEYS.noProxy, (body.noProxy as string).trim(), currentNoProxyRaw, updatedKeys, createdKeys);
     }
 
     if (updatedKeys.length > 0) {

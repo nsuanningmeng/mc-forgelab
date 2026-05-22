@@ -3,6 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { resolveMavenWrapper } from "@mc-forgelab/toolchain-manager";
+import { spawn } from "node:child_process";
 import { runBuild } from "./index.js";
 
 vi.mock("@mc-forgelab/toolchain-manager", () => ({
@@ -46,6 +48,34 @@ describe("runBuild", () => {
 
       expect(rec.buildId).toBe(buildId);
       expect(rec.logPath).toContain(buildId);
+    } finally {
+      try {
+        rmSync(workspaceRoot, { recursive: true, force: true });
+      } catch {
+        // The write stream may finish a tick later on Windows.
+      }
+    }
+  });
+
+  it("uses Maven wrapper resolution and Maven build arguments when buildTool is maven", async () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "mcfl-build-"));
+    const projectPath = join(workspaceRoot, "project");
+    mkdirSync(projectPath);
+
+    try {
+      await runBuild("project-1", {
+        buildId: "maven-build",
+        workspaceRoot,
+        projectPath,
+        logsDir: join(workspaceRoot, "logs"),
+        buildTool: "maven",
+      });
+
+      expect(resolveMavenWrapper).toHaveBeenCalledWith(projectPath);
+      expect(spawn).toHaveBeenCalledWith("mvn", ["package", "-B", "-e"], expect.objectContaining({
+        cwd: projectPath,
+        shell: false,
+      }));
     } finally {
       try {
         rmSync(workspaceRoot, { recursive: true, force: true });

@@ -2,7 +2,10 @@ import { existsSync, mkdirSync, rmSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { platform as osPlatform, arch as osArch, homedir } from "node:os";
 import { execSync, spawnSync } from "node:child_process";
-import { get as httpsGet } from "node:https";
+import { request as httpRequest } from "node:http";
+import { Agent as HttpsAgent, get as httpsGet, request as httpsRequest } from "node:https";
+import { connect as tlsConnect } from "node:tls";
+import type { Duplex } from "node:stream";
 import { createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 
@@ -23,6 +26,12 @@ export interface ToolchainStatus {
   readonly requestedVersion?: string;
   readonly path?: string;
   readonly issues: ReadonlyArray<string>;
+}
+
+export interface ProxyConfig {
+  readonly http?: string;
+  readonly https?: string;
+  readonly noProxy?: string;
 }
 
 interface ExecResult {
@@ -57,7 +66,7 @@ export interface ExecAttempt {
   readonly error: string | null;
 }
 
-function tryExecFull(cmd: string, args: string[]): ExecAttempt {
+export function tryExecFull(cmd: string, args: string[]): ExecAttempt {
   const result = spawnSync(cmd, args, {
     encoding: "utf8",
     shell: needsShell(cmd),
@@ -109,7 +118,7 @@ function tryExecFirst(commands: ReadonlyArray<string>, args: string[]): ExecResu
   return null;
 }
 
-function parseJavaMajor(output: string | null): number | null {
+export function parseJavaMajor(output: string | null): number | null {
   const match = /version\s+"(?:(1)\.)?(\d+)/i.exec(output ?? "");
   if (!match?.[2]) return null;
   return Number.parseInt(match[2], 10);
@@ -207,11 +216,113 @@ interface AdoptiumBinary {
   package: { link: string; name: string; size: number };
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
+function readProxyConfig(proxy?: ProxyConfig): ProxyConfig {
+  return {
+    http: proxy?.http ?? process.env.MC_FORGELAB_PROXY_HTTP,
+    https: proxy?.https ?? process.env.MC_FORGELAB_PROXY_HTTPS,
+    noProxy: proxy?.noProxy ?? process.env.MC_FORGELAB_PROXY_NO_PROXY,
+  };
+}
+
+function proxyPort(proxy: URL): number {
+  if (proxy.port) return Number.parseInt(proxy.port, 10);
+  return proxy.protocol === "https:" ? 443 : 80;
+}
+
+function proxyAuthorization(proxy: URL): string | undefined {
+  if (!proxy.username && !proxy.password) return undefined;
+  const username = decodeURIComponent(proxy.username);
+  const password = decodeURIComponent(proxy.password);
+  return `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
+}
+
+function parseProxyUrl(proxyUrl: string): URL {
+  return new URL(/^https?:\/\//i.test(proxyUrl) ? proxyUrl : `http://${proxyUrl}`);
+}
+
+function bypassesProxy(targetUrl: URL, noProxy: string | undefined): boolean {
+  const host = targetUrl.hostname.toLowerCase();
+  return (noProxy ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean)
+    .some((entry) => {
+      if (entry === "*") return true;
+      const [entryHost] = entry.split(":");
+      if (!entryHost) return false;
+      const normalized = entryHost.startsWith(".") ? entryHost.slice(1) : entryHost;
+      return host === normalized || host.endsWith(`.${normalized}`);
+    });
+}
+
+class HttpsProxyAgent extends HttpsAgent {
+  constructor(private readonly proxyUrl: URL) {
+    super();
+  }
+
+  override createConnection(
+    options: Parameters<HttpsAgent["createConnection"]>[0],
+    callback?: Parameters<HttpsAgent["createConnection"]>[1]
+  ): ReturnType<HttpsAgent["createConnection"]> {
+    const targetHost = String(options.host ?? options.hostname ?? "");
+    const targetPort = Number(options.port ?? 443);
+    const auth = proxyAuthorization(this.proxyUrl);
+    const connectRequest = (this.proxyUrl.protocol === "https:" ? httpsRequest : httpRequest)({
+      host: this.proxyUrl.hostname,
+      port: proxyPort(this.proxyUrl),
+      method: "CONNECT",
+      path: `${targetHost}:${targetPort}`,
+      headers: {
+        Host: `${targetHost}:${targetPort}`,
+        ...(auth ? { "Proxy-Authorization": auth } : {}),
+      },
+    });
+
+    let settled = false;
+    const done = (err: Error | null, socket?: Duplex) => {
+      if (settled) return;
+      settled = true;
+      callback?.(err, socket as Duplex);
+    };
+
+    connectRequest.once("connect", (res, socket, head) => {
+      if (res.statusCode !== 200) {
+        socket.destroy();
+        done(new Error(`Proxy CONNECT failed: HTTP ${res.statusCode ?? 0}`));
+        return;
+      }
+      if (head.length > 0) socket.unshift(head);
+      const tlsSocket = tlsConnect({
+        socket,
+        servername: typeof options.servername === "string" ? options.servername : targetHost,
+      });
+      tlsSocket.once("secureConnect", () => done(null, tlsSocket));
+      tlsSocket.once("error", (error) => done(error));
+    });
+    connectRequest.once("error", (error) => done(error));
+    connectRequest.end();
+
+    return undefined;
+  }
+}
+
+export function getProxyAgent(target: string | URL = "https://example.invalid", proxy?: ProxyConfig): HttpsAgent | undefined {
+  const targetUrl = target instanceof URL ? target : new URL(target);
+  const proxyConfig = readProxyConfig(proxy);
+  if (bypassesProxy(targetUrl, proxyConfig.noProxy)) return undefined;
+
+  const proxyUrl = targetUrl.protocol === "https:" ? proxyConfig.https ?? proxyConfig.http : proxyConfig.http;
+  if (!proxyUrl) return undefined;
+  const parsedProxy = parseProxyUrl(proxyUrl);
+  if (targetUrl.protocol !== "https:") return undefined;
+  return new HttpsProxyAgent(parsedProxy);
+}
+
+async function fetchJson<T>(url: string, proxy?: ProxyConfig): Promise<T> {
   return new Promise((resolve, reject) => {
-    httpsGet(url, { headers: { Accept: "application/json" } }, (res) => {
+    httpsGet(url, { headers: { Accept: "application/json" }, agent: getProxyAgent(url, proxy) }, (res) => {
       if (res.statusCode === 301 || res.statusCode === 302) {
-        fetchJson<T>(res.headers.location!).then(resolve, reject);
+        fetchJson<T>(new URL(res.headers.location!, url).toString(), proxy).then(resolve, reject);
         return;
       }
       let data = "";
@@ -225,12 +336,12 @@ async function fetchJson<T>(url: string): Promise<T> {
   });
 }
 
-async function downloadFile(url: string, dest: string): Promise<void> {
+async function downloadFile(url: string, dest: string, proxy?: ProxyConfig): Promise<void> {
   return new Promise((resolve, reject) => {
     const follow = (u: string) => {
-      httpsGet(u, (res) => {
+      httpsGet(u, { agent: getProxyAgent(u, proxy) }, (res) => {
         if (res.statusCode === 301 || res.statusCode === 302) {
-          follow(res.headers.location!);
+          follow(new URL(res.headers.location!, u).toString());
           return;
         }
         if (res.statusCode !== 200) {
@@ -257,6 +368,7 @@ function getAdoptiumArch(): string {
 
 export interface DownloadJdkOptions {
   readonly onProgress?: (message: string) => void;
+  readonly proxy?: ProxyConfig;
 }
 
 /**
@@ -278,7 +390,7 @@ export async function downloadJdk(version: 8 | 11 | 17 | 21, opts: DownloadJdkOp
   const api = `https://api.adoptium.net/v3/assets/latest/${version}/hotspot?architecture=${arch}&image_type=jdk&os=${os}&vendor=eclipse`;
 
   log(`Fetching Adoptium JDK ${version} metadata...`);
-  const assets = await fetchJson<AdoptiumBinary[]>(api);
+  const assets = await fetchJson<AdoptiumBinary[]>(api, opts.proxy);
   if (!assets.length || !assets[0]?.package?.link) {
     throw new Error(`No Adoptium JDK ${version} found for ${os}/${arch}`);
   }
@@ -289,7 +401,7 @@ export async function downloadJdk(version: 8 | 11 | 17 | 21, opts: DownloadJdkOp
 
   mkdirSync(toolchainsDir(), { recursive: true });
   log(`Downloading JDK ${version} (${(pkg.size / 1024 / 1024).toFixed(0)} MB)...`);
-  await downloadFile(pkg.link, archivePath);
+  await downloadFile(pkg.link, archivePath, opts.proxy);
 
   log("Extracting...");
   const extractDir = join(toolchainsDir(), `jdk-${version}-tmp`);
@@ -354,7 +466,7 @@ export async function bootstrapGradleWrapper(projectDir: string, version = "8.8"
   if (!existsSync(wrapperJar)) {
     log(`Downloading Gradle ${version} wrapper...`);
     const jarUrl = `https://raw.githubusercontent.com/gradle/gradle/v${version}/gradle/wrapper/gradle-wrapper.jar`;
-    await downloadFile(jarUrl, wrapperJar);
+    await downloadFile(jarUrl, wrapperJar, opts.proxy);
   }
 
   // Generate gradle-wrapper.properties
@@ -404,7 +516,7 @@ export async function bootstrapMavenWrapper(projectDir: string, version = "3.9.9
   mkdirSync(wrapperDir, { recursive: true });
   if (!existsSync(wrapperJar)) {
     log("Downloading Maven wrapper...");
-    await downloadFile(MAVEN_WRAPPER_JAR_URL, wrapperJar);
+    await downloadFile(MAVEN_WRAPPER_JAR_URL, wrapperJar, opts.proxy);
   }
   const { writeFileSync: writeFile, chmodSync } = await import("node:fs");
   if (!existsSync(wrapperProps)) {

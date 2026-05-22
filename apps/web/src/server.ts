@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { openStorage, BASE_MIGRATIONS, STAGE6_MIGRATIONS } from "@mc-forgelab/storage";
+import { openStorage, BASE_MIGRATIONS, STAGE6_MIGRATIONS, type Storage } from "@mc-forgelab/storage";
 import { STAGE2_MIGRATIONS, createProviderManager } from "@mc-forgelab/ai-provider-manager";
 import { STAGE3_MIGRATIONS, createWorkflowEngine, createWorkflowRuntime, BUILTIN_WORKFLOWS, type BuildRunner, type PatchApplier, type WorkflowBuildResult } from "@mc-forgelab/ai-workflow-engine";
 import { applyMigration as applyKnowledgeMigration, STAGE7_MIGRATIONS } from "@mc-forgelab/knowledge-base";
@@ -27,6 +27,7 @@ import { verifyPassword } from "./lib/password.js";
 import { registerProxyRoutes } from "./routes/proxy.js";
 import { createBuildRegistry } from "./lib/build-registry.js";
 import { createAuditLogger, STAGE_WEB_MIGRATIONS } from "./lib/audit.js";
+import { applyToolchainProxyEnv } from "./lib/proxy-agent.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_VERSION = readPackageVersion();
@@ -49,10 +50,11 @@ function isToolchainUnavailableError(error: unknown): boolean {
   return /toolchain|jdk|java|gradle|JAVA_HOME|executable/i.test(errorMessage(error));
 }
 
-function createWorkflowBuildRunner(cfg: AppConfig): BuildRunner {
+function createWorkflowBuildRunner(cfg: AppConfig, storage: Storage): BuildRunner {
   return {
     async run(input): Promise<WorkflowBuildResult> {
       try {
+        applyToolchainProxyEnv(storage);
         const record = await runBuild(input.projectId, {
           workspaceRoot: cfg.paths.workspace,
           projectPath: input.projectPath,
@@ -199,7 +201,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   const providers = createProviderManager(storage);
   const workflowEngine = createWorkflowEngine(storage);
   workflowEngine.seedBuiltins();
-  const buildRunner = createWorkflowBuildRunner(cfg);
+  const buildRunner = createWorkflowBuildRunner(cfg, storage);
   const patchApplier = createWorkflowPatchApplier();
   const workflowRuntime = createWorkflowRuntime({
     storage,
