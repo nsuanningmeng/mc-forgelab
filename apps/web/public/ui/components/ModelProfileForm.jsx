@@ -94,7 +94,7 @@ window.MCFL = window.MCFL || {};
                 placeholder={tf.modelHint}
               />
               <datalist id="model-list">
-                {availableModels.map(m => <option key={m} value={m} />)}
+                {availableModels.map(m => <option key={m.id} value={m.id} />)}
               </datalist>
               {fetching && <div className="absolute right-2 top-2 text-2xs text-tx3">{tf.fetchingModels}</div>}
               {fetchError && <div className="absolute right-2 top-2 text-2xs text-danger">{tf.modelFetchFailed}</div>}
