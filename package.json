@@ -1,8 +1,8 @@
 {
   "name": "mc-forgelab",
-  "version": "0.4.15",
+  "version": "0.4.16",
   "private": true,
-  "description": "Minecraft plugin / mod / hybrid project generator, builder and download platform — desktop GUI / CLI / WebUI in Docker.",
+  "description": "Minecraft plugin / mod / hybrid project generator, builder and download platform 鈥?desktop GUI / CLI / WebUI in Docker.",
   "type": "module",
   "engines": {
     "node": ">=20.18"

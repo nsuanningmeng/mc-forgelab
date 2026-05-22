@@ -448,6 +448,19 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
     }
   );
 
+  app.get<{ Params: { id: string } }>(
+    "/api/ai/providers/:id/models",
+    async (req, reply) => {
+      try {
+        const models = await ctx.providers.listModels(req.params.id);
+        return models;
+      } catch (e) {
+        if (e instanceof AppError) return reply.status(e.httpStatus).send({ error: e.messageEn, code: e.code });
+        throw e;
+      }
+    }
+  );
+
   app.get("/api/ai/workflows", async () => {
     return ctx.storage.backend.all("SELECT id, name, mode, builtin, created_at FROM ai_workflows ORDER BY builtin DESC, created_at");
   });
