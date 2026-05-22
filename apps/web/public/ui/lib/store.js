@@ -2,6 +2,19 @@ window.MCFL = window.MCFL || {};
 (function () {
   const { api } = window.MCFL;
 
+  function t(key, fallback) {
+    const lang = (typeof localStorage !== 'undefined' && localStorage.getItem('mcfl.lang')) || 'zh';
+    const langs = window.MCFL.LANGS || {};
+    const dict = langs[lang] || langs.zh || {};
+    const keys = key.split('.');
+    let obj = dict;
+    for (const k of keys) {
+      if (!obj) return fallback;
+      obj = obj[k];
+    }
+    return obj || fallback;
+  }
+
   function extractFileOps(text) {
     if (!text || typeof text !== 'string') return null;
     const startIdx = text.search(/\[\s*\{\s*"op"\s*:\s*"(?:create|update|delete)"/);
@@ -169,7 +182,7 @@ window.MCFL = window.MCFL || {};
         type: 'text',
         content: '',
         status: 'streaming',
-        step: 'Initializing...'
+        step: t('ws.initializing', 'Initializing...')
       });
 
       let currentText = '';
@@ -184,7 +197,7 @@ window.MCFL = window.MCFL || {};
           case 'step_started':
             this.dispatch('UPDATE_STREAMING', {
               ...this.state.streamingMessage,
-              step: `Step: ${event.stepId || 'Thinking...'}`,
+              step: `${t('ws.stepPrefix', 'Step')}: ${event.stepId || t('ws.stepThinking', 'Thinking...')}`,
               status: 'streaming'
             });
             break;
@@ -199,7 +212,7 @@ window.MCFL = window.MCFL || {};
               type: 'text',
               content: currentText,
               status: 'streaming',
-              step: this.state.streamingMessage?.step || 'Generating...',
+              step: this.state.streamingMessage?.step || t('ws.generating', 'Generating...'),
               timestamp: new Date().toISOString()
             });
             break;

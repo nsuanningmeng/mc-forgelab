@@ -68,8 +68,8 @@ window.MCFL = window.MCFL || {};
 
           <div className="flex flex-col gap-1 min-w-0">
             <div className={cx.j(
-              "px-4 py-3 rounded-2xl text-sm shadow-sm",
-              isUser ? "bg-blue text-white rounded-tr-none" : "bg-elevated text-tx1 border border-border/50 rounded-tl-none"
+              "px-4 py-3 rounded-2xl text-sm",
+              isUser ? "bg-gray-100 dark:bg-neutral-800 text-tx1 rounded-tr-sm" : "bg-transparent text-tx1 px-0 py-0"
             )}>
               {message.type === 'files' ? (
                 <FileCards files={message.content} />

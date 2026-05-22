@@ -144,6 +144,11 @@ window.MCFL.LANGS = {
       noProjectHint: "选择或创建项目开始编码",
       clearChat: "清空对话",
       confirmClear: "确定要清空对话历史吗？",
+      exportChat: "导出对话",
+      stepPrefix: "步骤",
+      stepThinking: "思考中...",
+      generating: "生成中...",
+      initializing: "正在初始化...",
     },
 
     proj: {
@@ -514,6 +519,11 @@ window.MCFL.LANGS = {
       noProjectHint: "Select or create a project",
       clearChat: "Clear Chat",
       confirmClear: "Are you sure you want to clear the conversation history?",
+      exportChat: "Export Chat",
+      stepPrefix: "Step",
+      stepThinking: "Thinking...",
+      generating: "Generating...",
+      initializing: "Initializing...",
     },
 
     proj: {

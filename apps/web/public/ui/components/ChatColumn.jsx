@@ -214,7 +214,7 @@ window.MCFL = window.MCFL || {};
                 <button
                   onClick={handleExportChat}
                   data-testid="export-chat-btn"
-                  className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold text-tx3 hover:text-mc hover:bg-mc/10 rounded transition-colors uppercase tracking-tight"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-tx3 hover:text-mc hover:bg-mc/10 rounded transition-colors whitespace-nowrap"
                   title={t.ws?.exportChat || "Export Chat"}
                 >
                   <Icon name="download" className="w-3 h-3" />
@@ -222,7 +222,7 @@ window.MCFL = window.MCFL || {};
                 </button>
                 <button
                   onClick={handleClearChat}
-                  className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold text-tx3 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors uppercase tracking-tight"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-tx3 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors whitespace-nowrap"
                   title={t.ws?.clearChat || "Clear Conversation"}
                 >
                   <Icon name="trash" className="w-3 h-3" />
