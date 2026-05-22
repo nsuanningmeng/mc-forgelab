@@ -17,6 +17,25 @@ window.MCFL = window.MCFL || {};
 
   function extractFileOps(text) {
     if (!text || typeof text !== 'string') return null;
+
+    // Try the root object format first: {"type":"file_patch","operations":[...]}
+    const objMatch = text.match(/\{\s*"type"\s*:\s*"file_patch"[^}]*"operations"\s*:\s*(\[[\s\S]*?\}\s*\])\s*[,\}]/);
+    if (objMatch) {
+      try {
+        const files = JSON.parse(objMatch[1]);
+        if (Array.isArray(files) && files.length > 0 && files.every(f => f && typeof f.op === 'string' && typeof f.path === 'string')) {
+          const startIdx = text.indexOf(objMatch[0]);
+          const endIdx = startIdx + objMatch[0].length;
+          return {
+            before: text.slice(0, startIdx).trim(),
+            files,
+            after: text.slice(endIdx).trim()
+          };
+        }
+      } catch (e) { /* fall through */ }
+    }
+
+    // Fallback: bare array [{ "op": ... }]
     const startIdx = text.search(/\[\s*\{\s*"op"\s*:\s*"(?:create|update|delete)"/);
     if (startIdx === -1) return null;
 

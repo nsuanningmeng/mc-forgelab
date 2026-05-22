@@ -21,6 +21,7 @@ window.MCFL = window.MCFL || {};
             <button
               onClick={() => toggle(idx)}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-elevated/50 transition-colors text-left"
+              aria-expanded={!!expanded[idx]}
             >
               <Icon name="chevronR" className={cx.j("w-3 h-3 text-tx3 transition-transform", expanded[idx] && "rotate-90")} />
               <span className={cx.j(

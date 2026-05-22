@@ -88,13 +88,15 @@ window.MCFL = window.MCFL || {};
         projectId = project.id;
       }
 
+      const history = Store.getState().messages
+        .filter(m => (m.role === 'user' || m.role === 'assistant') && m.type === 'text')
+        .slice(-19)
+        .map(m => ({ role: m.role, content: typeof m.content === 'string' ? m.content : '' }))
+        .filter(m => m.content.length > 0);
+
       Store.dispatch('ADD_MESSAGE', { role: 'user', type: 'text', content: userPrompt });
 
       try {
-        const history = Store.getState().messages
-          .filter(m => m.role === 'user' || m.role === 'assistant')
-          .slice(-20)
-          .map(m => ({ role: m.role, content: m.content }));
 
         const run = await api.startWorkflowRun({
           projectId,

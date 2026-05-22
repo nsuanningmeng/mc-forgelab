@@ -504,9 +504,10 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
 
       const historyContext: { role: "user" | "assistant" | "system"; content: string }[] = [];
       if (Array.isArray(body.history)) {
-        for (const m of body.history) {
+        const clamped = body.history.slice(-20);
+        for (const m of clamped) {
           if (m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim().length > 0) {
-            historyContext.push({ role: m.role, content: m.content.trim() });
+            historyContext.push({ role: m.role, content: m.content.trim().slice(0, 2000) });
           }
         }
       }
