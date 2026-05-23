@@ -1,4 +1,6 @@
 FROM node:20-slim AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make gcc g++ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
 COPY packages/ packages/
