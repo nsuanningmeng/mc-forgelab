@@ -6,9 +6,15 @@ export interface WorkflowContextSnapshot {
   projectContext?: string;
   requirementSpec?: string;
   projectPlan?: string;
+  modificationPlan?: string;
   initialFiles?: string;
+  initialProjectFiles?: string;
+  finalFiles?: string;
   filePatch?: string;
+  documentationPatch?: string;
   patchResult?: string;
+  reviewReport?: string;
+  errorAnalysis?: string;
   buildLog?: string;
   artifacts?: string;
   finalSummary?: string;
@@ -23,9 +29,15 @@ const KNOWN_KEYS = new Set<string>([
   "projectContext",
   "requirementSpec",
   "projectPlan",
+  "modificationPlan",
   "initialFiles",
+  "initialProjectFiles",
+  "finalFiles",
   "filePatch",
+  "documentationPatch",
   "patchResult",
+  "reviewReport",
+  "errorAnalysis",
   "buildLog",
   "artifacts",
   "finalSummary",

@@ -12,6 +12,8 @@ import { applyMigration as applyKnowledgeMigration, STAGE7_MIGRATIONS } from "@m
 import { createArtifactManager } from "@mc-forgelab/artifact-manager";
 import { loadConfig, type AppConfig } from "@mc-forgelab/config";
 import { runBuild } from "@mc-forgelab/build-orchestrator";
+import { renderTemplate } from "@mc-forgelab/template-engine";
+import type { ProjectSpec } from "@mc-forgelab/project-model";
 import { createFileOperationService, parseFilePatch } from "@mc-forgelab/file-operation";
 import { AppError } from "@mc-forgelab/app-error";
 import { registerProjectRoutes } from "./routes/projects.js";
@@ -73,7 +75,9 @@ function createWorkflowBuildRunner(cfg: AppConfig, storage: Storage): BuildRunne
         return {
           status,
           errorSummary: record.errorSummary,
-          errorCode: status === "failed" ? "BUILD_FAILED" : status === "canceled" ? "CANCELED" : undefined
+          errorCode: status === "failed" ? "BUILD_FAILED" : status === "canceled" ? "CANCELED" : undefined,
+          buildId: record.buildId,
+          logPath: record.logPath
         };
       } catch (error) {
         const message = errorMessage(error);
@@ -203,6 +207,60 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   workflowEngine.seedBuiltins();
   const buildRunner = createWorkflowBuildRunner(cfg, storage);
   const patchApplier = createWorkflowPatchApplier();
+  const builds = createBuildRegistry(storage);
+
+  const templateRunner = {
+    async renderTemplate(projectId: string, targetId: string, minecraftVersion: string, packageName: string, projectName: string) {
+      const outputDir = join(cfg.paths.workspace, "projects", projectId);
+      const spec: ProjectSpec = {
+        targetId,
+        minecraftVersion,
+        packageName,
+        name: projectName,
+        slug: projectName.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+        type: "plugin" as const,
+        buildTool: "gradle" as const,
+        javaVersion: 21,
+        version: "1.0.0",
+      };
+      return renderTemplate("plugin-paper-java", spec, outputDir, { dryRun: false, overwrite: false });
+    }
+  };
+
+  const packageRunner = {
+    async packageArtifacts(projectId: string, buildResult: { buildId?: string; status: string; log?: string }, projectPath: string) {
+      if (!buildResult.buildId) return "No build ID available for packaging.";
+      const entry = builds.get(buildResult.buildId);
+      if (!entry) return `Build record ${buildResult.buildId} not found.`;
+      const project = storage.backend.get<{ target_id: string; minecraft_version: string; java_version: number; name: string }>(
+        "SELECT target_id, minecraft_version, java_version, name FROM projects WHERE id = ?",
+        [projectId]
+      );
+      if (!project) return "Project not found.";
+      const buildStatus = entry.status === "queued" || entry.status === "running" ? "running" : entry.status === "success" ? "success" : "failed";
+      const buildRecord = {
+        buildId: entry.buildId,
+        projectId: entry.projectId,
+        status: buildStatus as "success" | "failed" | "running",
+        startedAt: entry.startedAt,
+        finishedAt: entry.finishedAt,
+        errorSummary: entry.errorSummary,
+        logPath: join(cfg.paths.workspace, "logs", `${entry.buildId}.log`)
+      };
+      const records = await artifacts.createForSuccessfulBuild({
+        projectId,
+        projectName: project.name,
+        build: buildRecord,
+        workspaceRoot: cfg.paths.workspace,
+        projectPath,
+        targetId: project.target_id,
+        minecraftVersion: project.minecraft_version,
+        javaVersion: project.java_version ?? 21,
+      });
+      return JSON.stringify(records.map(r => ({ fileName: r.fileName, type: r.type, fileSize: r.fileSize })));
+    }
+  };
+
   const workflowRuntime = createWorkflowRuntime({
     storage,
     engine: workflowEngine,
@@ -213,9 +271,10 @@ export async function buildApp(opts: BuildAppOptions = {}) {
       logsDir: join(cfg.paths.workspace, "logs")
     },
     buildRunner,
-    patchApplier
+    patchApplier,
+    templateRunner,
+    packageRunner
   });
-  const builds = createBuildRegistry(storage);
   const auditor = createAuditLogger(storage);
 
   const app = Fastify({ logger: true });

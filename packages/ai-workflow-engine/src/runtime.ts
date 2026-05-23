@@ -9,6 +9,8 @@ import type {
   PatchApplier,
   RuntimeConfig,
   StepRole,
+  TemplateRunner,
+  PackageRunner,
   ToolExecutionContext,
   WorkflowBuildResult,
   WorkflowDefinition,
@@ -78,6 +80,8 @@ interface RuntimeDeps {
   readonly config?: RuntimeConfig;
   readonly buildRunner?: BuildRunner;
   readonly patchApplier?: PatchApplier;
+  readonly templateRunner?: TemplateRunner;
+  readonly packageRunner?: PackageRunner;
 }
 
 interface ResolvedChatAdapter {
@@ -587,7 +591,25 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
 
   async function runTool(step: WorkflowStepDef, inputs: Record<string, string>, workflowContext: WorkflowContextSnapshot, toolContext: ToolExecutionContext): Promise<unknown> {
     switch (step.role) {
-      case "system_template_init":
+      case "system_template_init": {
+        const projectId = workflowContext.projectId;
+        if (deps.templateRunner && projectId) {
+          const project = deps.storage.backend.get<{ target_id: string; minecraft_version: string; package_name: string; name: string }>(
+            "SELECT target_id, minecraft_version, package_name, name FROM projects WHERE id = ?",
+            [projectId]
+          );
+          if (project) {
+            const files = await deps.templateRunner.renderTemplate(
+              projectId,
+              project.target_id,
+              project.minecraft_version,
+              project.package_name,
+              project.name
+            );
+            toolContext.emitLog(`Template rendered: ${files.length} file(s).`);
+            return JSON.stringify({ files: files.map(f => ({ path: f.relativePath, content: f.content })) });
+          }
+        }
         return JSON.stringify({
           files: [
             { path: "src/main/java/com/example/Main.java", content: "" },
@@ -595,6 +617,7 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
             { path: "build.gradle.kts", content: "" }
           ]
         });
+      }
       case "system_apply_patch":
         return executeApplyPatch(
           workflowContext.projectId,
@@ -603,8 +626,29 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         );
       case "system_build":
         return executeBuild(workflowContext.projectId ?? inputs.projectId, toolContext);
-      case "system_package":
-        return "Generated fake artifact: build/libs/forgelab-generated-0.3.0.jar";
+      case "system_package": {
+        const projectId = workflowContext.projectId;
+        const buildResult = workflowContext.buildResult;
+        if (deps.packageRunner && projectId && buildResult && buildResult.status === "success") {
+          const project = deps.storage.backend.get<{ project_path: string | null }>(
+            "SELECT project_path FROM projects WHERE id = ?",
+            [projectId]
+          );
+          const workspaceRoot = deps.config?.workspaceRoot ?? process.cwd();
+          const projectPath = project?.project_path
+            ? (isAbsolute(project.project_path) ? resolve(project.project_path) : resolve(workspaceRoot, project.project_path))
+            : resolve(workspaceRoot, "projects", projectId);
+          try {
+            const result = await deps.packageRunner.packageArtifacts(projectId, buildResult, projectPath);
+            toolContext.emitLog(`Artifacts packaged: ${result}`);
+            return result;
+          } catch (error) {
+            toolContext.emitLog(`Package failed: ${errorMessage(error)}`);
+            return JSON.stringify({ error: errorMessage(error) });
+          }
+        }
+        return "No artifacts to package (build not successful or packaging skipped).";
+      }
       default:
         return "Tool completed successfully.";
     }

@@ -72,10 +72,20 @@ export interface WorkflowBuildResult {
   readonly log?: string;
   readonly errorSummary?: string | null;
   readonly errorCode?: WorkflowBuildErrorCode;
+  readonly buildId?: string;
+  readonly logPath?: string;
 }
 
 export interface BuildRunner {
   run(input: BuildRunnerInput): Promise<WorkflowBuildResult>;
+}
+
+export interface TemplateRunner {
+  renderTemplate(projectId: string, targetId: string, minecraftVersion: string, packageName: string, projectName: string): Promise<readonly { relativePath: string; content: string }[]>;
+}
+
+export interface PackageRunner {
+  packageArtifacts(projectId: string, buildResult: WorkflowBuildResult, projectPath: string): Promise<string>;
 }
 
 export interface PatchApplyOptions {
