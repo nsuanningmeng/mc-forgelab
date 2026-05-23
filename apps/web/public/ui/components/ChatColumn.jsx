@@ -92,7 +92,8 @@ window.MCFL = window.MCFL || {};
               minecraftVersion: '1.21.4',
               packageName
             });
-            Store.dispatch('SET_PROJECTS', [...Store.getState().projects, project]);
+            const projects = await api.projects();
+            Store.dispatch('SET_PROJECTS', projects);
           } catch (err) {
             Store.dispatch('ADD_MESSAGE', { role: 'system', type: 'error', content: 'Failed to create project: ' + err.message });
             return;
@@ -174,10 +175,10 @@ window.MCFL = window.MCFL || {};
           name: newProjectName.trim(),
           targetId: 'paper',
           minecraftVersion: '1.21.4',
-          packageName: 'com.example.' + newProjectName.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+          packageName: 'com.example.' + (newProjectName.trim().toLowerCase().replace(/[^a-z0-9]/g, '') || 'untitled')
         });
-        const currentProjects = Store.getState().projects;
-        Store.dispatch('SET_PROJECTS', [...currentProjects, project]);
+        const projects = await api.projects();
+        Store.dispatch('SET_PROJECTS', projects);
         Store.dispatch('SET_PROJECT', project);
         setShowNewProject(false);
         setNewProjectName('');

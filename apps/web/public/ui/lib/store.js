@@ -288,6 +288,9 @@ window.MCFL = window.MCFL || {};
             break;
 
           case 'error':
+            if (currentText) {
+              this.dispatch('ADD_MESSAGE', { role: 'assistant', type: 'text', content: currentText });
+            }
             this.state.stepHistory = [];
             this.dispatch('ADD_MESSAGE', { role: 'system', type: 'error', content: event.message || 'Workflow failed' });
             this.dispatch('UPDATE_STREAMING', null);

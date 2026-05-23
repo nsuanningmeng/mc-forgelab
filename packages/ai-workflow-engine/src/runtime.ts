@@ -630,15 +630,8 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         const projectId = workflowContext.projectId;
         const buildResult = workflowContext.buildResult;
         if (deps.packageRunner && projectId && buildResult && buildResult.status === "success") {
-          const project = deps.storage.backend.get<{ project_path: string | null }>(
-            "SELECT project_path FROM projects WHERE id = ?",
-            [projectId]
-          );
-          const workspaceRoot = deps.config?.workspaceRoot ?? process.cwd();
-          const projectPath = project?.project_path
-            ? (isAbsolute(project.project_path) ? resolve(project.project_path) : resolve(workspaceRoot, project.project_path))
-            : resolve(workspaceRoot, "projects", projectId);
           try {
+            const { projectPath } = resolveProjectBuildConfig(projectId);
             const result = await deps.packageRunner.packageArtifacts(projectId, buildResult, projectPath);
             toolContext.emitLog(`Artifacts packaged: ${result}`);
             return result;

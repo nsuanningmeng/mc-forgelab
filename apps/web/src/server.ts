@@ -217,7 +217,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
         minecraftVersion,
         packageName,
         name: projectName,
-        slug: projectName.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+        slug: projectName.toLowerCase().replace(/[^a-z0-9-]/g, "-") || "untitled",
         type: "plugin" as const,
         buildTool: "gradle" as const,
         javaVersion: 21,

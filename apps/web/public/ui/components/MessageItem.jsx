@@ -86,7 +86,7 @@ window.MCFL = window.MCFL || {};
     }
   };
 
-  function StepTimeline({ stepHistory, currentStepId }) {
+  function StepTimeline({ stepHistory }) {
     const lang = (typeof localStorage !== 'undefined' && localStorage.getItem('mcfl.lang')) || 'zh';
     const names = ROLE_NAMES[lang] || ROLE_NAMES.zh;
 
@@ -150,7 +150,7 @@ window.MCFL = window.MCFL || {};
 
           <div className="flex flex-col gap-1 min-w-0">
             {hasStepHistory && (
-              <StepTimeline stepHistory={message.stepHistory} currentStepId={message.step} />
+              <StepTimeline stepHistory={message.stepHistory} />
             )}
 
             {message.type === 'files' ? (
