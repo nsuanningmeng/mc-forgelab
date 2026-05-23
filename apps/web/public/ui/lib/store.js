@@ -85,34 +85,12 @@ window.MCFL = window.MCFL || {};
         workflows: [],
         projects: [],
         artifacts: [],
+        loadingMessages: false,
       };
       this.listeners = new Set();
       this._activeStream = null;
-    }
-
-    _getStorageKey(projectId) {
-      return `mcfl.chat.${projectId || 'default'}`;
-    }
-
-    _loadMessages(projectId) {
-      const key = this._getStorageKey(projectId);
-      try {
-        const saved = localStorage.getItem(key);
-        return saved ? JSON.parse(saved) : [];
-      } catch (e) {
-        console.error('Failed to load chat history', e);
-        return [];
-      }
-    }
-
-    _saveMessages(projectId, messages) {
-      const key = this._getStorageKey(projectId);
-      const toSave = messages.slice(-100);
-      try {
-        localStorage.setItem(key, JSON.stringify(toSave));
-      } catch (e) {
-        console.error('Failed to save chat history', e);
-      }
+      this._migrationDone = localStorage.getItem('mcfl.migration.done') === '1';
+      this._pendingSave = null;
     }
 
     getState() {
@@ -128,6 +106,80 @@ window.MCFL = window.MCFL || {};
       this.listeners.forEach((fn) => fn({ ...this.state }));
     }
 
+    // ── Server-backed message persistence ─────────────────────────────────
+
+    async _loadMessages(projectId) {
+      if (!projectId || !api) return;
+      this.state.loadingMessages = true;
+      this.notify();
+      try {
+        const msgs = await api.getMessages(projectId);
+        this.state.messages = Array.isArray(msgs) ? msgs : [];
+      } catch (e) {
+        console.error('Failed to load messages from server', e);
+        this.state.messages = [];
+      } finally {
+        this.state.loadingMessages = false;
+        this.notify();
+      }
+    }
+
+    async _saveMessages() {
+      if (!this.state.activeProjectId || !api) return;
+      const id = this.state.activeProjectId;
+      const msgs = this.state.messages;
+      // Debounce: schedule save, only the latest call within 200ms wins
+      if (this._pendingSave) clearTimeout(this._pendingSave);
+      this._pendingSave = setTimeout(async () => {
+        this._pendingSave = null;
+        try {
+          await api.syncMessages(id, msgs.slice(-200));
+        } catch (e) {
+          console.error('Failed to save messages to server', e);
+        }
+      }, 200);
+    }
+
+    async _migrateLocalStorage(projectId) {
+      if (this._migrationDone || !api) return;
+      // Scan all localStorage keys for old chat data
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('mcfl.chat.')) keys.push(k);
+      }
+      if (keys.length === 0) {
+        localStorage.setItem('mcfl.migration.done', '1');
+        this._migrationDone = true;
+        return;
+      }
+      // Push each project's messages to the server
+      let migrated = 0;
+      for (const key of keys) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const msgs = JSON.parse(raw);
+          if (!Array.isArray(msgs) || msgs.length === 0) continue;
+          const pid = key.replace('mcfl.chat.', '');
+          if (pid === 'default') continue;
+          await api.syncMessages(pid, msgs.slice(-200));
+          localStorage.removeItem(key);
+          migrated++;
+        } catch (e) {
+          console.error('Migration failed for key ' + key, e);
+        }
+      }
+      if (migrated > 0 && projectId) {
+        // Reload messages for current project after migration
+        await this._loadMessages(projectId);
+      }
+      localStorage.setItem('mcfl.migration.done', '1');
+      this._migrationDone = true;
+    }
+
+    // ── Dispatch ─────────────────────────────────────────────────────────
+
     dispatch(action, payload) {
       switch (action) {
         case 'SET_PROJECTS':
@@ -135,13 +187,21 @@ window.MCFL = window.MCFL || {};
           if (!this.state.activeProjectId && payload.length > 0) {
             this.state.activeProjectId = payload[0].id;
             this.state.activeProject = payload[0];
-            this.state.messages = this._loadMessages(this.state.activeProjectId);
+            this._migrateLocalStorage(this.state.activeProjectId).then(() =>
+              this._loadMessages(this.state.activeProjectId)
+            );
           }
           break;
         case 'SET_PROJECT':
           this.state.activeProjectId = payload?.id || null;
           this.state.activeProject = payload;
-          this.state.messages = this._loadMessages(this.state.activeProjectId);
+          if (this.state.activeProjectId) {
+            this._migrateLocalStorage(this.state.activeProjectId).then(() =>
+              this._loadMessages(this.state.activeProjectId)
+            );
+          } else {
+            this.state.messages = [];
+          }
           break;
         case 'SET_ACTIVE_WORKFLOW':
           this.state.activeWorkflowId = payload;
@@ -152,13 +212,13 @@ window.MCFL = window.MCFL || {};
             timestamp: new Date().toISOString(),
             ...payload
           };
-          this.state.messages = [...this.state.messages, newMessage].slice(-100);
-          this._saveMessages(this.state.activeProjectId, this.state.messages);
+          this.state.messages = [...this.state.messages, newMessage].slice(-200);
+          this._saveMessages();
           break;
         }
         case 'CLEAR_MESSAGES':
           this.state.messages = [];
-          this._saveMessages(this.state.activeProjectId, []);
+          this._saveMessages();
           break;
         case 'UPDATE_STREAMING':
           this.state.streamingMessage = payload;

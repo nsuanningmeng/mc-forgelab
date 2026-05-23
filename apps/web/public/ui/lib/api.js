@@ -53,6 +53,8 @@ window.MCFL.api = (() => {
     project: (id) => request("GET", `/api/projects/${id}`),
     createProject: (body) => request("POST", "/api/projects", body),
     deleteProject: (id) => request("DELETE", `/api/projects/${id}`),
+    getMessages: (projectId) => request("GET", `/api/projects/${projectId}/messages`),
+    syncMessages: (projectId, messages) => request("POST", `/api/projects/${projectId}/messages`, { messages }),
 
     // Targets
     targets: () => request("GET", "/api/targets"),

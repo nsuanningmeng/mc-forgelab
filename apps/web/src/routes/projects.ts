@@ -128,4 +128,59 @@ export async function registerProjectRoutes(app: FastifyInstance, ctx: AppContex
     ctx.auditor.log({ eventType: "project.delete", entityType: "project", entityId: req.params.id });
     return reply.status(204).send();
   });
+
+  // ── Chat Messages ──────────────────────────────────────────────────────
+
+  app.get<{ Params: { id: string } }>("/api/projects/:id/messages", async (req, reply) => {
+    const project = ctx.storage.backend.get("SELECT id FROM projects WHERE id = ?", [req.params.id]);
+    if (!project) return reply.status(404).send({ error: "Project not found" });
+    const rows = ctx.storage.backend.all<{
+      id: string; role: string; type: string; content: string;
+      content_json: string | null; timestamp: string; sequence: number;
+    }>(
+      "SELECT id, role, type, content, content_json, timestamp, sequence FROM chat_messages WHERE project_id = ? ORDER BY sequence ASC",
+      [req.params.id]
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      role: r.role,
+      type: r.type,
+      content: r.type === "files" && r.content_json ? JSON.parse(r.content_json) : r.content,
+      timestamp: r.timestamp,
+      sequence: r.sequence
+    }));
+  });
+
+  app.post<{ Params: { id: string }; Body: { messages?: unknown } }>(
+    "/api/projects/:id/messages",
+    async (req, reply) => {
+      const project = ctx.storage.backend.get("SELECT id FROM projects WHERE id = ?", [req.params.id]);
+      if (!project) return reply.status(404).send({ error: "Project not found" });
+      const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+      if (messages.length > 200) {
+        return reply.status(400).send({ error: "Too many messages (max 200)" });
+      }
+      try {
+        ctx.storage.backend.run("BEGIN");
+        ctx.storage.backend.run("DELETE FROM chat_messages WHERE project_id = ?", [req.params.id]);
+        for (let i = 0; i < messages.length; i++) {
+          const m = messages[i];
+          if (!m || typeof m.role !== "string" || typeof m.type !== "string") continue;
+          const content = typeof m.content === "string" ? m.content : "";
+          const contentJson = typeof m.content === "object" && m.content !== null ? JSON.stringify(m.content) : null;
+          const timestamp = typeof m.timestamp === "string" ? m.timestamp : new Date().toISOString();
+          const id = typeof m.id === "string" ? m.id : randomUUID();
+          ctx.storage.backend.run(
+            "INSERT INTO chat_messages (id, project_id, role, type, content, content_json, timestamp, sequence) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [id, req.params.id, m.role, m.type, content, contentJson, timestamp, i]
+          );
+        }
+        ctx.storage.backend.run("COMMIT");
+      } catch (e) {
+        try { ctx.storage.backend.run("ROLLBACK"); } catch { /* ignore */ }
+        throw e;
+      }
+      return reply.status(200).send({ ok: true, count: messages.length });
+    }
+  );
 }

@@ -38,9 +38,23 @@ async function start() {
   const built = await buildApp({ cfg });
   fastify = built.app;
   storage = built.storage;
-  await fastify.listen({ port: 0, host: "127.0.0.1" });
+  // Prefer a stable port so localStorage origin persists across restarts.
+  // Fall back to any available port if the preferred one is in use.
+  const PREFERRED_PORT = Number(process.env.MC_FORGELAB_DESKTOP_PORT) || 3000;
+  let actualPort = PREFERRED_PORT;
+  try {
+    await fastify.listen({ port: PREFERRED_PORT, host: "127.0.0.1" });
+  } catch (e) {
+    if (e && typeof e === "object" && "code" in e && e.code === "EADDRINUSE") {
+      await fastify.listen({ port: 0, host: "127.0.0.1" });
+      const addr = fastify.server.address();
+      actualPort = typeof addr === "object" && addr ? addr.port : PREFERRED_PORT;
+    } else {
+      throw e;
+    }
+  }
   const addr = fastify.server.address();
-  const port = typeof addr === "object" && addr ? addr.port : 3000;
+  const port = typeof addr === "object" && addr ? addr.port : actualPort;
   serverUrl = `http://127.0.0.1:${port}`;
 
   console.log(JSON.stringify({ port, url: serverUrl }));

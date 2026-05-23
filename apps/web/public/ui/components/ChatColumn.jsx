@@ -229,7 +229,13 @@ window.MCFL = window.MCFL || {};
 
         <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-6 scroll-smooth">
           <div className="max-w-3xl mx-auto">
-            {state.messages.length === 0 && !state.streamingMessage && (
+            {state.loadingMessages && state.messages.length === 0 && (
+              <div className="h-full flex flex-col items-center justify-center py-20 text-center">
+                <div className="w-8 h-8 border-2 border-mc/30 border-t-mc rounded-full animate-spin mb-4" />
+                <p className="text-sm text-tx3">{t.ws?.loadingMessages || "Loading conversation..."}</p>
+              </div>
+            )}
+            {!state.loadingMessages && state.messages.length === 0 && !state.streamingMessage && (
               <div className="h-full flex flex-col items-center justify-center py-20 text-center">
                 <div className="w-16 h-16 bg-elevated rounded-2xl flex items-center justify-center mb-4 text-tx3 shadow-xl border border-border/50">
                   <Icon name="spark" className="w-8 h-8" />
