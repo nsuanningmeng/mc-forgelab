@@ -629,18 +629,16 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
       case "system_package": {
         const projectId = workflowContext.projectId;
         const buildResult = workflowContext.buildResult;
-        if (deps.packageRunner && projectId && buildResult && buildResult.status === "success") {
-          try {
-            const { projectPath } = resolveProjectBuildConfig(projectId);
-            const result = await deps.packageRunner.packageArtifacts(projectId, buildResult, projectPath);
-            toolContext.emitLog(`Artifacts packaged: ${result}`);
-            return result;
-          } catch (error) {
-            toolContext.emitLog(`Package failed: ${errorMessage(error)}`);
-            return JSON.stringify({ error: errorMessage(error) });
-          }
+        if (!deps.packageRunner || !projectId || !buildResult) {
+          return "No artifacts to package (build not successful or packaging skipped).";
         }
-        return "No artifacts to package (build not successful or packaging skipped).";
+        if (buildResult.status !== "success") {
+          throw new Error(`Cannot package: build status is ${buildResult.status}.`);
+        }
+        const { projectPath } = resolveProjectBuildConfig(projectId);
+        const result = await deps.packageRunner.packageArtifacts(projectId, buildResult, projectPath);
+        toolContext.emitLog(`Artifacts packaged: ${result}`);
+        return result;
       }
       default:
         return "Tool completed successfully.";

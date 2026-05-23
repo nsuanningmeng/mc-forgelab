@@ -109,10 +109,13 @@ window.MCFL = window.MCFL || {};
               <div key={i} className={cx.j(
                 "flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border transition-colors",
                 isRunning ? "bg-mc/10 border-mc/40 text-mc" :
-                isDone ? "bg-green-500/5 border-green-500/30 text-green-500" :
-                isFailed ? "bg-red-500/5 border-red-500/30 text-red-500" :
+                isDone ? "bg-mc/5 border-mc/30 text-mc" :
+                isFailed ? "bg-danger/5 border-danger/30 text-danger" :
                 "bg-bg border-border/30 text-tx3"
-              )}>
+              )}
+                role="status"
+                aria-label={`${label}: ${isRunning ? (lang === 'zh' ? '运行中' : 'Running') : isDone ? (lang === 'zh' ? '已完成' : 'Done') : isFailed ? (lang === 'zh' ? '失败' : 'Failed') : (lang === 'zh' ? '等待中' : 'Pending')}`}
+              >
                 {isRunning && (
                   <span className="relative flex h-1.5 w-1.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-mc opacity-75"></span>
@@ -179,12 +182,14 @@ window.MCFL = window.MCFL || {};
                     <button
                       onClick={() => setThinkingExpanded(!thinkingExpanded)}
                       className="flex items-center gap-1.5 text-[11px] text-tx3 hover:text-mc transition-colors px-1 py-0.5"
+                      aria-expanded={thinkingExpanded}
+                      aria-controls="thinking-panel"
                     >
                       <Icon name="chevronR" className={cx.j("w-3 h-3 transition-transform", thinkingExpanded && "rotate-90")} />
                       <span>{(typeof localStorage !== 'undefined' && localStorage.getItem('mcfl.lang')) === 'en' ? 'View thinking...' : '查看思考过程...'}</span>
                     </button>
                     {thinkingExpanded && (
-                      <div className="mt-1.5 p-3 rounded-lg bg-bg-log/50 border border-border/30 max-h-96 overflow-y-auto text-sm">
+                      <div id="thinking-panel" className="mt-1.5 p-3 rounded-lg bg-bg-log/50 border border-border/30 max-h-96 overflow-y-auto text-sm">
                         <MarkdownRenderer content={message.content} isStreaming={true} />
                       </div>
                     )}
