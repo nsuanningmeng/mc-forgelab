@@ -6,8 +6,6 @@ window.MCFL = window.MCFL || {};
   function ChatColumn({ t }) {
     const [state, setState] = useState(Store.getState());
     const [input, setInput] = useState('');
-    const [showNewProject, setShowNewProject] = useState(false);
-    const [newProjectName, setNewProjectName] = useState('');
     const scrollRef = useRef(null);
     const isNearBottomRef = useRef(true);
     const userScrolledUpRef = useRef(false);
@@ -134,11 +132,6 @@ window.MCFL = window.MCFL || {};
       }
     };
 
-    const onProjectChange = (val) => {
-      const proj = state.projects.find(p => p.id === val);
-      Store.dispatch('SET_PROJECT', proj);
-    };
-
     const onWorkflowChange = (val) => {
       Store.dispatch('SET_ACTIVE_WORKFLOW', val);
     };
@@ -168,31 +161,7 @@ window.MCFL = window.MCFL || {};
       URL.revokeObjectURL(url);
     };
 
-    const handleCreateProject = async () => {
-      if (!newProjectName.trim()) return;
-      try {
-        const project = await api.createProject({
-          name: newProjectName.trim(),
-          targetId: 'paper',
-          minecraftVersion: '1.21.4',
-          packageName: 'com.example.' + (newProjectName.trim().toLowerCase().replace(/[^a-z0-9]/g, '') || 'untitled')
-        });
-        const projects = await api.projects();
-        Store.dispatch('SET_PROJECTS', projects);
-        Store.dispatch('SET_PROJECT', project);
-        setShowNewProject(false);
-        setNewProjectName('');
-      } catch (err) {
-        alert('Failed to create project: ' + err.message);
-      }
-    };
-
-    const projectOptions = useMemo(() => 
-      state.projects.map(p => ({ value: p.id, label: p.name })),
-      [state.projects]
-    );
-
-    const workflowOptions = useMemo(() => 
+    const workflowOptions = useMemo(() =>
       state.workflows.map(w => ({ value: w.id, label: w.name })),
       [state.workflows]
     );
@@ -201,40 +170,11 @@ window.MCFL = window.MCFL || {};
       <div className="flex-1 flex flex-col min-w-0 bg-bg">
         <header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0 bg-surface/50 backdrop-blur-sm z-10">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="flex items-center gap-2 bg-elevated/50 px-2 py-1 rounded border border-border/50">
-              <Icon name="folder" className="w-4 h-4 text-tx3" />
-              <CustomSelect
-                value={state.activeProjectId}
-                onChange={onProjectChange}
-                options={projectOptions}
-                placeholder={t.topbar?.noProject || "Select Project..."}
-                className="!bg-transparent !border-none !p-0 !h-auto !ring-0 !w-auto min-w-[120px]"
-              />
-              <button
-                onClick={() => setShowNewProject(!showNewProject)}
-                className="w-6 h-6 rounded flex items-center justify-center text-tx3 hover:text-mc hover:bg-elevated transition-colors"
-                title={t.proj?.newProject || "New Project"}
-              >
-                <Icon name="plus" className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            {showNewProject && (
-              <div className="flex items-center gap-2 bg-elevated/50 px-2 py-1 rounded border border-border/50 animate-in fade-in slide-in-from-left-2">
-                <input
-                  type="text"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreateProject(); }}
-                  placeholder={t.proj?.name || "Project name"}
-                  className="bg-transparent text-sm text-tx1 outline-none w-32 placeholder:text-tx3"
-                  autoFocus
-                />
-                <button onClick={handleCreateProject} className="text-xs text-mc hover:underline font-medium">{t.common?.create || "Create"}</button>
-                <button onClick={() => { setShowNewProject(false); setNewProjectName(''); }} className="text-xs text-tx3 hover:text-tx1">{t.common?.cancel || "Cancel"}</button>
-              </div>
-            )}
             {state.activeProject && (
-              <div className="hidden sm:flex items-center gap-2 text-[10px] text-tx3 mcfl-mono bg-bg/50 px-2 py-1 rounded border border-border/30">
+              <div className="flex items-center gap-2 text-[10px] text-tx3 mcfl-mono bg-bg/50 px-2 py-1 rounded border border-border/30">
+                <Icon name="folder" className="w-3 h-3 text-tx3" />
+                <span className="text-tx2 font-medium">{state.activeProject.name}</span>
+                <span className="opacity-30">|</span>
                 <span>{state.activeProject.target_id.charAt(0).toUpperCase() + state.activeProject.target_id.slice(1).toLowerCase()}</span>
                 <span className="opacity-30">|</span>
                 <span>{state.activeProject.minecraft_version}</span>

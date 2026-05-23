@@ -3,8 +3,8 @@ window.MCFL = window.MCFL || {};
   const { useState, useEffect } = React;
   const {
     theme, LANGS, ErrorBoundary, Sidebar, Topbar,
-    Store, ChatColumn, InspectorColumn,
-    Artifacts, Toolchains, Settings, Knowledge, ProjectDetail, Icon
+    Store, ChatColumn, InspectorColumn, api,
+    Artifacts, Toolchains, Settings, Knowledge, Icon
   } = window.MCFL;
 
   function App() {
@@ -14,10 +14,13 @@ window.MCFL = window.MCFL || {};
     const [activeTheme, setActiveTheme] = useState(theme.getTheme());
     const [health, setHealth] = useState(null);
     const [storeState, setStoreState] = useState(Store.getState());
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     useEffect(() => {
       theme.setTheme(activeTheme);
       const unsub = Store.subscribe(setStoreState);
+      // Load projects once at app level so sidebar always has them
+      api.projects().then(ps => Store.dispatch('SET_PROJECTS', ps)).catch(() => {});
       return unsub;
     }, []);
 
@@ -34,6 +37,30 @@ window.MCFL = window.MCFL || {};
     const handleSetTheme = (newTheme) => {
       setActiveTheme(newTheme);
       theme.setTheme(newTheme);
+    };
+
+    const handleSelectProject = (project) => {
+      Store.dispatch('SET_PROJECT', project);
+      if (page !== 'workspace') setPage('workspace');
+    };
+
+    const handleCreateProject = () => {
+      const name = lang === 'zh' ? '新项目' : 'New Project';
+      const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'untitled';
+      api.createProject({
+        name,
+        targetId: 'paper',
+        minecraftVersion: '1.21.4',
+        packageName: 'com.example.' + slug
+      }).then(project => {
+        return api.projects().then(ps => {
+          Store.dispatch('SET_PROJECTS', ps);
+          Store.dispatch('SET_PROJECT', project);
+          if (page !== 'workspace') setPage('workspace');
+        });
+      }).catch(err => {
+        Store.dispatch('ADD_MESSAGE', { role: 'system', type: 'error', content: 'Failed to create project: ' + err.message });
+      });
     };
 
     const renderContent = () => {
@@ -53,7 +80,6 @@ window.MCFL = window.MCFL || {};
         case 'knowledge': return <div className="flex-1 overflow-y-auto"><Knowledge {...props} /></div>;
         case 'toolchains': return <div className="flex-1 overflow-y-auto"><Toolchains {...props} /></div>;
         case 'settings': return <div className="flex-1 overflow-y-auto"><Settings {...props} onSetTheme={handleSetTheme} /></div>;
-        case 'project-detail': return <div className="flex-1 overflow-y-auto"><ProjectDetail {...props} /></div>;
         default: return (
           <div className="flex-1 flex overflow-hidden">
             <ChatColumn t={t} />
@@ -63,9 +89,32 @@ window.MCFL = window.MCFL || {};
       }
     };
 
+    const showWideSidebar = !sidebarCollapsed && (page === 'workspace' || page === 'project-detail');
+
     return (
       <div className="flex h-screen overflow-hidden bg-bg">
-        <Sidebar t={t} activePage={page} onNavigate={setPage} isNarrow={true} />
+        {showWideSidebar ? (
+          <Sidebar
+            t={t}
+            activePage={page}
+            onNavigate={setPage}
+            isNarrow={false}
+            projects={storeState.projects}
+            activeProjectId={storeState.activeProjectId}
+            onSelectProject={handleSelectProject}
+            onCreateProject={handleCreateProject}
+          />
+        ) : (
+          <Sidebar
+            t={t}
+            activePage={page}
+            onNavigate={(p) => {
+              if (p === 'workspace') setSidebarCollapsed(false);
+              setPage(p);
+            }}
+            isNarrow={true}
+          />
+        )}
 
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Topbar

@@ -1,13 +1,15 @@
 window.MCFL = window.MCFL || {};
 (function () {
-  const { cx, Icon } = window.MCFL;
+  const { cx, Icon, ProjectCard } = window.MCFL;
 
-  function Sidebar({ t, activePage, onNavigate, isNarrow }) {
+  function Sidebar({ t, activePage, onNavigate, isNarrow, projects, activeProjectId, onSelectProject, onCreateProject }) {
     const items = [
       { id: "workspace", icon: "spark", label: t.nav.workspace },
       { id: "artifacts", icon: "box", label: t.nav.artifacts },
       { id: "settings", icon: "cog", label: t.nav.settings },
     ];
+
+    const projectList = Array.isArray(projects) ? projects : [];
 
     if (isNarrow) {
       return (
@@ -52,7 +54,7 @@ window.MCFL = window.MCFL || {};
           <span className="font-bold text-tx1 tracking-tight text-lg">{t.appName}</span>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+        <nav className="p-3 space-y-1 border-b border-border/50">
           {items.map((item) => (
             <button
               key={item.id}
@@ -68,6 +70,41 @@ window.MCFL = window.MCFL || {};
             </button>
           ))}
         </nav>
+
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/30">
+          <span className="text-xs font-semibold text-tx2 uppercase tracking-wider">{t.nav?.projects || "Projects"}</span>
+          <button
+            onClick={onCreateProject}
+            className="w-6 h-6 rounded flex items-center justify-center text-tx3 hover:text-mc hover:bg-mc/10 transition-colors"
+            title={t.proj?.newProject || "New project"}
+            data-testid="sidebar-new-project-btn"
+          >
+            <Icon name="plus" className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          {projectList.length === 0 ? (
+            <div className="px-3 py-6 text-center text-xs text-tx3">
+              <p>{t.ws?.noProjectHint || "No projects yet."}</p>
+              <button
+                onClick={onCreateProject}
+                className="mt-2 text-mc hover:underline text-xs font-medium"
+              >
+                {t.proj?.newProject || "Create one"}
+              </button>
+            </div>
+          ) : (
+            projectList.map((p) => (
+              <ProjectCard
+                key={p.id}
+                project={p}
+                selected={p.id === activeProjectId}
+                onSelect={onSelectProject}
+              />
+            ))
+          )}
+        </div>
       </aside>
     );
   }
