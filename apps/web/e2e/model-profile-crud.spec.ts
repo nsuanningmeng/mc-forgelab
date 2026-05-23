@@ -40,10 +40,13 @@ test.describe('AI Settings CRUD', () => {
 
     await expect(profileSection).toContainText('E2E Profile', { timeout: 10000 });
 
-    // 3. Delete Profile
-    // Handle dialog
-    page.once('dialog', dialog => dialog.accept());
-    await profileSection.getByTestId('delete-profile-btn').click();
+    // 3. Delete all E2E Profiles (persistent DB may have leftovers from prior runs)
+    page.on('dialog', dialog => dialog.accept());
+    const deleteBtns = profileSection.getByTestId('delete-profile-btn');
+    while (await deleteBtns.count() > 0) {
+      await deleteBtns.first().click();
+      await page.waitForTimeout(300);
+    }
 
     await expect(profileSection).not.toContainText('E2E Profile', { timeout: 10000 });
   });

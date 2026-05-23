@@ -29,7 +29,7 @@
     "@mc-forgelab/file-operation": "workspace:*",
     "@mc-forgelab/compatibility": "workspace:*",
     "@mc-forgelab/target-registry": "workspace:*",
-    "better-sqlite3": "^11.5.0",
+    "better-sqlite3": "^12.10.0",
     "electron-updater": "^6.8.3"
   },
   "devDependencies": {

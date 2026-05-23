@@ -12,9 +12,18 @@ test.describe('File Preview', () => {
   });
 
   test('should create project and query files via API', async ({ request }) => {
+    // Clean up stale project from prior runs (persistent DB)
+    // Note: slug is auto-derived from name by the API
+    const prev = await request.get('/api/projects');
+    if (prev.ok()) {
+      const projects: Array<{ id: string; slug: string }> = await prev.json();
+      const stale = projects.find(p => p.slug === 'fileprevtest');
+      if (stale) await request.delete(`/api/projects/${stale.id}`);
+    }
+
     const resp = await request.post('/api/projects', {
       data: {
-        name: 'FilePrevTest', slug: 'fileprev-test', type: 'plugin',
+        name: 'FilePrevTest', type: 'plugin',
         targetId: 'paper', minecraftVersion: '1.20.1', javaVersion: 17,
         buildTool: 'gradle', packageName: 'com.fileprev.test', version: '1.0.0'
       }
