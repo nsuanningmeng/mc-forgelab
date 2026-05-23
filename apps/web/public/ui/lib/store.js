@@ -79,6 +79,7 @@ window.MCFL = window.MCFL || {};
         activeWorkflowId: 'simple-single-model',
         streamingMessage: null,
         workflowStatus: 'idle',
+        stepHistory: [],
         fileTree: [],
         currentBuild: null,
         workflows: [],
@@ -196,6 +197,7 @@ window.MCFL = window.MCFL || {};
     async initWorkflowStream(runId) {
       this.cancelStream();
       this.dispatch('SET_WORKFLOW_STATUS', 'running');
+      this.state.stepHistory = [];
       this.dispatch('UPDATE_STREAMING', {
         role: 'assistant',
         type: 'text',
@@ -213,13 +215,18 @@ window.MCFL = window.MCFL || {};
             this.dispatch('SET_WORKFLOW_STATUS', 'running');
             break;
 
-          case 'step_started':
+          case 'step_started': {
+            const entry = { stepId: event.stepId, role: event.role, status: 'running', summary: null };
+            this.state.stepHistory = [...this.state.stepHistory, entry];
             this.dispatch('UPDATE_STREAMING', {
               ...this.state.streamingMessage,
-              step: `${t('ws.stepPrefix', 'Step')}: ${event.stepId || t('ws.stepThinking', 'Thinking...')}`,
+              step: event.stepId,
+              stepRole: event.role,
+              stepHistory: this.state.stepHistory,
               status: 'streaming'
             });
             break;
+          }
 
           case 'step_log':
             break;
@@ -231,12 +238,20 @@ window.MCFL = window.MCFL || {};
               type: 'text',
               content: currentText,
               status: 'streaming',
-              step: this.state.streamingMessage?.step || t('ws.generating', 'Generating...'),
+              step: this.state.streamingMessage?.step,
+              stepRole: this.state.streamingMessage?.stepRole,
+              stepHistory: this.state.stepHistory,
               timestamp: new Date().toISOString()
             });
             break;
 
-          case 'step_finished':
+          case 'step_finished': {
+            const idx = this.state.stepHistory.findIndex(s => s.stepId === event.stepId);
+            if (idx >= 0) {
+              this.state.stepHistory = this.state.stepHistory.map((s, i) =>
+                i === idx ? { ...s, status: event.status === 'success' ? 'done' : 'failed', summary: event.outputSummary || null } : s
+              );
+            }
             if (event.outputSummary && typeof event.outputSummary === 'string' && event.outputSummary.includes('```diff')) {
               this.dispatch('ADD_MESSAGE', {
                 role: 'assistant',
@@ -246,6 +261,7 @@ window.MCFL = window.MCFL || {};
               });
             }
             break;
+          }
 
           case 'run_finished':
             if (currentText) {
@@ -265,12 +281,14 @@ window.MCFL = window.MCFL || {};
                 this.dispatch('ADD_MESSAGE', { role: 'assistant', type: 'text', content: currentText });
               }
             }
+            this.state.stepHistory = [];
             this.dispatch('UPDATE_STREAMING', null);
             this.dispatch('SET_WORKFLOW_STATUS', event.status === 'success' ? 'success' : event.status);
             es.close();
             break;
 
           case 'error':
+            this.state.stepHistory = [];
             this.dispatch('ADD_MESSAGE', { role: 'system', type: 'error', content: event.message || 'Workflow failed' });
             this.dispatch('UPDATE_STREAMING', null);
             this.dispatch('SET_WORKFLOW_STATUS', 'failed');

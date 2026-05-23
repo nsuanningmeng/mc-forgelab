@@ -17,8 +17,20 @@ window.MCFL = window.MCFL || {};
       const unsub = Store.subscribe(setState);
       Promise.all([
         api.workflows().then(ws => Store.dispatch('SET_WORKFLOWS', ws)),
-        api.projects().then(ps => Store.dispatch('SET_PROJECTS', ps))
-      ]).catch(err => console.error("Failed to load workspace data", err));
+        api.projects().then(ps => Store.dispatch('SET_PROJECTS', ps)),
+        api.modelProfiles().catch(() => [])
+      ]).then(([workflows, _projects, profiles]) => {
+        const enabledRoles = new Set(
+          (profiles || []).filter(p => p.enabled !== false).map(p => p.role)
+        );
+        if (enabledRoles.size >= 2) {
+          const store = Store.getState();
+          if (store.activeWorkflowId === 'simple-single-model') {
+            const multiWf = (workflows || []).find(w => w.id === 'paper-plugin-standard');
+            if (multiWf) Store.dispatch('SET_ACTIVE_WORKFLOW', multiWf.id);
+          }
+        }
+      }).catch(err => console.error("Failed to load workspace data", err));
 
       return () => {
         unsub();
@@ -27,7 +39,11 @@ window.MCFL = window.MCFL || {};
     }, []);
 
     useEffect(() => {
-      if (scrollRef.current && !userScrolledUpRef.current) {
+      if (!scrollRef.current) return;
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight <= 60;
+      // Auto-scroll if user hasn't explicitly scrolled up, OR they're already near bottom
+      if (!userScrolledUpRef.current || isAtBottom) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       }
     }, [state.messages, state.streamingMessage]);
@@ -160,8 +176,9 @@ window.MCFL = window.MCFL || {};
           minecraftVersion: '1.21.4',
           packageName: 'com.example.' + newProjectName.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
         });
+        const currentProjects = Store.getState().projects;
+        Store.dispatch('SET_PROJECTS', [...currentProjects, project]);
         Store.dispatch('SET_PROJECT', project);
-        Store.dispatch('SET_PROJECTS', [...state.projects, project]);
         setShowNewProject(false);
         setNewProjectName('');
       } catch (err) {
@@ -217,7 +234,7 @@ window.MCFL = window.MCFL || {};
             )}
             {state.activeProject && (
               <div className="hidden sm:flex items-center gap-2 text-[10px] text-tx3 mcfl-mono bg-bg/50 px-2 py-1 rounded border border-border/30">
-                <span className="uppercase">{state.activeProject.target_id}</span>
+                <span>{state.activeProject.target_id.charAt(0).toUpperCase() + state.activeProject.target_id.slice(1).toLowerCase()}</span>
                 <span className="opacity-30">|</span>
                 <span>{state.activeProject.minecraft_version}</span>
               </div>

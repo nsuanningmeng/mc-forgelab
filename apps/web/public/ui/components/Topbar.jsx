@@ -27,7 +27,7 @@ window.MCFL = window.MCFL || {};
           <span className="uppercase tracking-wider text-tx3">{t.topbar.mode}:</span>
           <StatusBadge
             variant={mode === "workflow" ? "info" : "neutral"}
-            label={mode === "workflow" ? t.topbar.workflow : t.topbar.singleModel}
+            label={mode === "multi-model" ? t.topbar.workflow : t.topbar.singleModel}
             dot={false}
           />
           <span className="uppercase tracking-wider text-tx3 ml-2">{t.topbar.provider}:</span>

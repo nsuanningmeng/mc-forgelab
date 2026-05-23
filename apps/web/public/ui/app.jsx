@@ -71,6 +71,7 @@ window.MCFL = window.MCFL || {};
           <Topbar
             t={t}
             project={storeState.activeProject}
+            mode={storeState.workflows?.find(w => w.id === storeState.activeWorkflowId)?.mode}
             lang={lang}
             onToggleLang={() => handleSetLang(lang === 'zh' ? 'en' : 'zh')}
             health={health}
