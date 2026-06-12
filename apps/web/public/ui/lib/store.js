@@ -91,6 +91,13 @@ window.MCFL = window.MCFL || {};
       this._activeStream = null;
       this._migrationDone = localStorage.getItem('mcfl.migration.done') === '1';
       this._pendingSave = null;
+      this._pendingSavePayload = null;
+      // Saves are full-replace on the server, so they are only allowed once
+      // history for the active project was loaded successfully — otherwise a
+      // transient load failure + one new message would wipe stored history.
+      this._messagesLoadedFor = null;
+      this._pendingAdds = null;
+      this._loadToken = 0;
     }
 
     getState() {
@@ -110,34 +117,57 @@ window.MCFL = window.MCFL || {};
 
     async _loadMessages(projectId) {
       if (!projectId || !api) return;
+      this._messagesLoadedFor = null;
+      this._loadToken += 1;
+      const token = this._loadToken;
+      this._pendingAdds = [];
       this.state.loadingMessages = true;
       this.notify();
       try {
         const msgs = await api.getMessages(projectId);
-        this.state.messages = Array.isArray(msgs) ? msgs : [];
+        // A newer load (project switch) superseded this one — drop the result.
+        if (token !== this._loadToken || this.state.activeProjectId !== projectId) return;
+        const adds = this._pendingAdds || [];
+        this._pendingAdds = null;
+        this.state.messages = (Array.isArray(msgs) ? msgs : []).concat(adds).slice(-200);
+        this._messagesLoadedFor = projectId;
+        if (adds.length > 0) this._saveMessages();
       } catch (e) {
+        if (token !== this._loadToken) return;
         console.error('Failed to load messages from server', e);
-        this.state.messages = [];
+        // Keep saves blocked (_messagesLoadedFor stays null) so a transient
+        // load failure can never lead to overwriting stored history.
+        this.state.messages = this._pendingAdds || [];
+        this._pendingAdds = null;
       } finally {
-        this.state.loadingMessages = false;
-        this.notify();
+        if (token === this._loadToken) {
+          this.state.loadingMessages = false;
+          this.notify();
+        }
       }
     }
 
-    async _saveMessages() {
+    _saveMessages() {
       if (!this.state.activeProjectId || !api) return;
-      const id = this.state.activeProjectId;
-      const msgs = this.state.messages;
+      // Server sync is full-replace: never save before history was loaded.
+      if (this._messagesLoadedFor !== this.state.activeProjectId) return;
+      this._pendingSavePayload = { id: this.state.activeProjectId, msgs: this.state.messages };
       // Debounce: schedule save, only the latest call within 200ms wins
       if (this._pendingSave) clearTimeout(this._pendingSave);
-      this._pendingSave = setTimeout(async () => {
+      this._pendingSave = setTimeout(() => this._flushSave(), 200);
+    }
+
+    _flushSave() {
+      if (this._pendingSave) {
+        clearTimeout(this._pendingSave);
         this._pendingSave = null;
-        try {
-          await api.syncMessages(id, msgs.slice(-200));
-        } catch (e) {
-          console.error('Failed to save messages to server', e);
-        }
-      }, 200);
+      }
+      const payload = this._pendingSavePayload;
+      this._pendingSavePayload = null;
+      if (!payload || !api) return;
+      api.syncMessages(payload.id, payload.msgs.slice(-200)).catch((e) => {
+        console.error('Failed to save messages to server', e);
+      });
     }
 
     async _migrateLocalStorage(projectId) {
@@ -192,17 +222,26 @@ window.MCFL = window.MCFL || {};
             );
           }
           break;
-        case 'SET_PROJECT':
-          this.state.activeProjectId = payload?.id || null;
+        case 'SET_PROJECT': {
+          const newId = payload?.id || null;
+          if (newId !== this.state.activeProjectId) {
+            // Persist the previous project's tail immediately, then detach
+            // from its run stream so its events can't land in the new project.
+            this._flushSave();
+            this.cancelStream();
+            this.state.streamingMessage = null;
+            this.state.stepHistory = [];
+            if (this.state.workflowStatus === 'running') this.state.workflowStatus = 'idle';
+          }
+          this.state.activeProjectId = newId;
           this.state.activeProject = payload;
-          if (this.state.activeProjectId) {
-            this._migrateLocalStorage(this.state.activeProjectId).then(() =>
-              this._loadMessages(this.state.activeProjectId)
-            );
+          if (newId) {
+            this._migrateLocalStorage(newId).then(() => this._loadMessages(newId));
           } else {
             this.state.messages = [];
           }
           break;
+        }
         case 'SET_ACTIVE_WORKFLOW':
           this.state.activeWorkflowId = payload;
           break;
@@ -212,6 +251,11 @@ window.MCFL = window.MCFL || {};
             timestamp: new Date().toISOString(),
             ...payload
           };
+          // While history is still loading, buffer the message so the load
+          // result can merge it instead of replacing it.
+          if (this.state.loadingMessages && this._pendingAdds) {
+            this._pendingAdds.push(newMessage);
+          }
           this.state.messages = [...this.state.messages, newMessage].slice(-200);
           this._saveMessages();
           break;
@@ -289,6 +333,11 @@ window.MCFL = window.MCFL || {};
           }
 
           case 'step_log':
+            // Most step logs are noise, but provider/toolchain warnings explain
+            // why a run produced fake output or failed — surface those in chat.
+            if (typeof event.line === 'string' && /^(WARNING:|Auto-fix aborted)/.test(event.line)) {
+              this.dispatch('ADD_MESSAGE', { role: 'system', type: 'warning', content: event.line });
+            }
             break;
 
           case 'model_delta':
@@ -340,6 +389,13 @@ window.MCFL = window.MCFL || {};
               } else {
                 this.dispatch('ADD_MESSAGE', { role: 'assistant', type: 'text', content: currentText });
               }
+            }
+            if (event.status !== 'success' && event.status !== 'canceled') {
+              this.dispatch('ADD_MESSAGE', {
+                role: 'system',
+                type: 'error',
+                content: event.errorMessage || t('ws.runFailed', 'Workflow run failed.')
+              });
             }
             this.state.stepHistory = [];
             this.dispatch('UPDATE_STREAMING', null);
