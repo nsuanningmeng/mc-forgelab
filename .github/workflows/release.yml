@@ -19,7 +19,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          # Pin to windows-2022: windows-latest (Server 2025) ships only Visual
+          # Studio 2026 (v18), which the node-gyp bundled in pnpm 9.x cannot
+          # detect, breaking the better-sqlite3 source build. windows-2022 keeps
+          # VS 2022 and is supported until 2026-11-02; before then, migrate to
+          # node-gyp >= 12.1.0 (first version with VS 2026 support).
+          - os: windows-2022
             platform: win
             artifact: win
           # Pin macOS labels and isolate architectures. `macos-latest` is a moving label
