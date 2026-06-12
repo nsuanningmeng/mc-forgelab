@@ -10,6 +10,19 @@ const MC_VERSION_RE = /^\d+\.\d+(\.\d+)?$/;
 const PKG_RE = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/;
 const MAX_FILE_PATH_LENGTH = 2048;
 
+const MOD_TARGETS = new Set(["fabric", "quilt", "forge", "neoforge"]);
+
+function projectTypeFor(targetId: string): string {
+  return MOD_TARGETS.has(targetId) ? "mod" : "plugin";
+}
+
+/** Paper/Spigot 1.20.5+ require Java 21; 1.17–1.20.4 require 17. */
+function javaVersionFor(minecraftVersion: string): number {
+  const [major = 0, minor = 0, patch = 0] = minecraftVersion.split(".").map((p) => Number.parseInt(p, 10));
+  if (major > 1 || minor > 20 || (minor === 20 && patch >= 5)) return 21;
+  return 17;
+}
+
 interface ProjectFileRow {
   readonly id: string;
   readonly project_path: string | null;
@@ -103,7 +116,7 @@ export async function registerProjectRoutes(app: FastifyInstance, ctx: AppContex
       const now = new Date().toISOString();
       ctx.storage.backend.run(
         "INSERT INTO projects (id, name, slug, type, target_id, minecraft_version, java_version, build_tool, package_name, project_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [id, name.trim(), slug, "plugin", targetId, minecraftVersion, 17, "gradle", packageName, "", now, now]
+        [id, name.trim(), slug, projectTypeFor(targetId), targetId, minecraftVersion, javaVersionFor(minecraftVersion), "gradle", packageName, "", now, now]
       );
       const created = ctx.storage.backend.get("SELECT * FROM projects WHERE id = ?", [id]);
       ctx.auditor.log({
@@ -113,6 +126,46 @@ export async function registerProjectRoutes(app: FastifyInstance, ctx: AppContex
         payload: { name: name.trim(), targetId }
       });
       return reply.status(201).send(created);
+    }
+  );
+
+  app.patch<{ Params: { id: string }; Body: { name?: string; targetId?: string; minecraftVersion?: string; packageName?: string } }>(
+    "/api/projects/:id",
+    async (req, reply) => {
+      const row = ctx.storage.backend.get<Record<string, unknown>>("SELECT * FROM projects WHERE id = ?", [req.params.id]);
+      if (!row) return reply.status(404).send({ error: "Project not found" });
+      if (ctx.builds.hasActive(req.params.id)) {
+        return reply.status(409).send({ error: "Cannot edit project while a build is running. Cancel the build first." });
+      }
+
+      const body = req.body ?? {};
+      if (body.name !== undefined && (typeof body.name !== "string" || body.name.trim().length === 0 || body.name.length > 128))
+        return reply.status(400).send({ error: "name must be 1-128 chars" });
+      if (body.targetId !== undefined && (typeof body.targetId !== "string" || !validTargets.has(body.targetId)))
+        return reply.status(400).send({ error: `targetId must be one of: ${[...validTargets].join(", ")}` });
+      if (body.minecraftVersion !== undefined && (typeof body.minecraftVersion !== "string" || !MC_VERSION_RE.test(body.minecraftVersion)))
+        return reply.status(400).send({ error: "minecraftVersion must match x.y or x.y.z" });
+      if (body.packageName !== undefined && (typeof body.packageName !== "string" || !PKG_RE.test(body.packageName)))
+        return reply.status(400).send({ error: "packageName must be a valid Java package (e.g. com.example.plugin)" });
+
+      const name = body.name !== undefined ? body.name.trim() : (row.name as string);
+      const targetId = body.targetId ?? (row.target_id as string);
+      const minecraftVersion = body.minecraftVersion ?? (row.minecraft_version as string);
+      const packageName = body.packageName ?? (row.package_name as string);
+      const javaVersion = body.minecraftVersion !== undefined ? javaVersionFor(minecraftVersion) : (row.java_version as number);
+      const type = body.targetId !== undefined ? projectTypeFor(targetId) : (row.type as string);
+
+      ctx.storage.backend.run(
+        "UPDATE projects SET name=?, type=?, target_id=?, minecraft_version=?, java_version=?, package_name=?, updated_at=? WHERE id=?",
+        [name, type, targetId, minecraftVersion, javaVersion, packageName, new Date().toISOString(), req.params.id]
+      );
+      ctx.auditor.log({
+        eventType: "project.update",
+        entityType: "project",
+        entityId: req.params.id,
+        payload: { name, targetId, minecraftVersion, packageName }
+      });
+      return ctx.storage.backend.get("SELECT * FROM projects WHERE id = ?", [req.params.id]);
     }
   );
 

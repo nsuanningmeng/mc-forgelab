@@ -1,11 +1,12 @@
 window.MCFL = window.MCFL || {};
 (function () {
   const { useState, useEffect, useRef, useMemo } = React;
-  const { Store, MessageItem, cx, Icon, api, CustomSelect } = window.MCFL;
+  const { Store, MessageItem, cx, Icon, api, CustomSelect, ProjectEditModal } = window.MCFL;
 
   function ChatColumn({ t }) {
     const [state, setState] = useState(Store.getState());
     const [input, setInput] = useState('');
+    const [editingProject, setEditingProject] = useState(false);
     const scrollRef = useRef(null);
     const isNearBottomRef = useRef(true);
     const userScrolledUpRef = useRef(false);
@@ -65,7 +66,7 @@ window.MCFL = window.MCFL || {};
         .replace(/_+/g, '_')
         .replace(/\s+/g, ' ')
         .trim();
-      return sanitized.slice(0, 50) || 'Untitled Project';
+      return sanitized.slice(0, 50) || t.ws?.untitledProject || 'Untitled Project';
     };
 
     const handleSend = async () => {
@@ -162,27 +163,34 @@ window.MCFL = window.MCFL || {};
     };
 
     const workflowOptions = useMemo(() =>
-      state.workflows.map(w => ({ value: w.id, label: w.name })),
-      [state.workflows]
+      state.workflows.map(w => ({ value: w.id, label: t.wfNames?.[w.id] || w.name })),
+      [state.workflows, t]
     );
 
     return (
       <div className="flex-1 flex flex-col min-w-0 bg-bg">
         <header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0 bg-surface/50 backdrop-blur-sm z-10">
-          <div className="flex items-center gap-3 overflow-hidden">
+          <div className="flex items-center gap-3 overflow-hidden min-w-0">
             {state.activeProject && (
-              <div className="flex items-center gap-2 text-[10px] text-tx3 mcfl-mono bg-bg/50 px-2 py-1 rounded border border-border/30">
-                <Icon name="folder" className="w-3 h-3 text-tx3" />
-                <span className="text-tx2 font-medium">{state.activeProject.name}</span>
-                <span className="opacity-30">|</span>
-                <span>{state.activeProject.target_id.charAt(0).toUpperCase() + state.activeProject.target_id.slice(1).toLowerCase()}</span>
-                <span className="opacity-30">|</span>
-                <span>{state.activeProject.minecraft_version}</span>
-              </div>
+              <button
+                type="button"
+                data-testid="project-chip-edit"
+                onClick={() => setEditingProject(true)}
+                title={t.proj.editProject}
+                className="flex items-center gap-2 text-[10px] text-tx3 mcfl-mono bg-bg/50 px-2 py-1 rounded border border-border/30 hover:border-mc/50 hover:text-tx2 transition-colors cursor-pointer min-w-0"
+              >
+                <Icon name="folder" className="w-3 h-3 text-tx3 shrink-0" />
+                <span className="text-tx2 font-medium truncate max-w-[10rem] min-w-[3rem]">{state.activeProject.name}</span>
+                <span className="opacity-30 hidden xl:inline">|</span>
+                <span className="whitespace-nowrap hidden xl:inline">{state.activeProject.target_id.charAt(0).toUpperCase() + state.activeProject.target_id.slice(1).toLowerCase()}</span>
+                <span className="opacity-30 hidden xl:inline">|</span>
+                <span className="whitespace-nowrap hidden xl:inline">{state.activeProject.minecraft_version}</span>
+                <Icon name="cog" className="w-3 h-3 opacity-50 shrink-0" />
+              </button>
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             {state.messages.length > 0 && (
               <>
                 <button
@@ -192,7 +200,7 @@ window.MCFL = window.MCFL || {};
                   title={t.ws?.exportChat || "Export Chat"}
                 >
                   <Icon name="download" className="w-3 h-3" />
-                  <span className="hidden md:inline">{t.ws?.exportChat || "Export"}</span>
+                  <span className="hidden xl:inline">{t.ws?.exportChat || "Export"}</span>
                 </button>
                 <button
                   onClick={handleClearChat}
@@ -200,12 +208,12 @@ window.MCFL = window.MCFL || {};
                   title={t.ws?.clearChat || "Clear Conversation"}
                 >
                   <Icon name="trash" className="w-3 h-3" />
-                  <span className="hidden md:inline">{t.ws?.clearChat || "Clear Chat"}</span>
+                  <span className="hidden xl:inline">{t.ws?.clearChat || "Clear Chat"}</span>
                 </button>
               </>
             )}
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-tx3 uppercase tracking-tighter hidden lg:block font-semibold">{t.ws?.workflow || "Workflow"}:</span>
+              <span className="text-[10px] text-tx3 uppercase tracking-tighter hidden xl:block font-semibold">{t.ws?.workflow || "Workflow"}:</span>
               <CustomSelect
                 value={state.activeWorkflowId}
                 onChange={onWorkflowChange}
@@ -213,7 +221,7 @@ window.MCFL = window.MCFL || {};
                 className="!h-8 !w-48"
               />
             </div>
-            <div className="flex items-center gap-2 px-2.5 py-1 bg-elevated/30 rounded-full border border-border/50">
+            <div className="flex items-center gap-2 px-2.5 py-1 bg-elevated/30 rounded-full border border-border/50 shrink-0 whitespace-nowrap">
               <div className={cx.j(
                 "w-2 h-2 rounded-full",
                 state.workflowStatus === 'running' ? "bg-mc animate-pulse" :
@@ -226,6 +234,18 @@ window.MCFL = window.MCFL || {};
             </div>
           </div>
         </header>
+
+        {editingProject && state.activeProject && (
+          <ProjectEditModal
+            t={t}
+            project={state.activeProject}
+            onClose={() => setEditingProject(false)}
+            onSaved={(updated) => {
+              Store.dispatch('SET_PROJECT', updated);
+              api.projects().then(ps => Store.dispatch('SET_PROJECTS', ps)).catch(() => {});
+            }}
+          />
+        )}
 
         <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-6 scroll-smooth">
           <div className="max-w-3xl mx-auto">
@@ -245,10 +265,10 @@ window.MCFL = window.MCFL || {};
               </div>
             )}
             {state.messages.map(msg => (
-              <MessageItem key={msg.id} message={msg} />
+              <MessageItem key={msg.id} message={msg} t={t} />
             ))}
             {state.streamingMessage && (
-              <MessageItem message={state.streamingMessage} isStreaming={true} />
+              <MessageItem message={state.streamingMessage} isStreaming={true} t={t} />
             )}
           </div>
         </div>
@@ -273,8 +293,8 @@ window.MCFL = window.MCFL || {};
           </div>
           <div className="max-w-3xl mx-auto mt-2 flex items-center justify-between text-[10px] text-tx3 px-1">
             <div className="flex gap-4">
-              <span className="flex items-center gap-1"><kbd className="bg-elevated px-1 rounded border border-border/50">Enter</kbd> to send</span>
-              <span className="flex items-center gap-1"><kbd className="bg-elevated px-1 rounded border border-border/50">Shift+Enter</kbd> for newline</span>
+              <span className="flex items-center gap-1"><kbd className="bg-elevated px-1 rounded border border-border/50">Enter</kbd> {t.ws?.enterToSend || "to send"}</span>
+              <span className="flex items-center gap-1"><kbd className="bg-elevated px-1 rounded border border-border/50">Shift+Enter</kbd> {t.ws?.shiftEnterNewline || "for newline"}</span>
             </div>
             {state.workflowStatus === 'running' && (
               <div className="flex items-center gap-2 text-mc">
