@@ -14,7 +14,7 @@ window.MCFL = window.MCFL || {};
             {project ? project.name : t.topbar.noProject}
           </span>
           {project && (
-            <span className={cx.j("text-2xs text-tx3", cx.mono)}>
+            <span className={cx.j("text-2xs text-tx3 whitespace-nowrap shrink-0", cx.mono)}>
               · {project.target_id} · {project.minecraft_version}
             </span>
           )}
@@ -23,7 +23,7 @@ window.MCFL = window.MCFL || {};
         <div className="flex-1" />
 
         {/* runtime info */}
-        <div className="hidden md:flex items-center gap-2 text-2xs text-tx2">
+        <div className="hidden md:flex items-center gap-2 text-2xs text-tx2 shrink-0 whitespace-nowrap">
           <span className="uppercase tracking-wider text-tx3">{t.topbar.mode}:</span>
           <StatusBadge
             variant={mode === "workflow" ? "info" : "neutral"}
@@ -33,13 +33,13 @@ window.MCFL = window.MCFL || {};
           <span className="uppercase tracking-wider text-tx3 ml-2">{t.topbar.provider}:</span>
           <StatusBadge
             variant={providerOk ? "success" : "warn"}
-            label={providerOk ? "online" : "not configured"}
+            label={providerOk ? (t.topbar.providerOnline || "configured") : (t.topbar.providerMissing || "not configured")}
           />
           <span className="uppercase tracking-wider text-tx3 ml-2">{t.topbar.buildQueue}:</span>
-          <StatusBadge variant="success" label={buildQueue ?? "idle"} dot={false} />
+          <StatusBadge variant="success" label={buildQueue ?? (t.topbar.buildIdle || "idle")} dot={false} />
         </div>
 
-        <div className="flex items-center gap-1 ml-2">
+        <div className="flex items-center gap-1 ml-2 shrink-0">
           {health && (
             <span className={cx.j("text-2xs text-tx3 hidden lg:inline", cx.mono)}>
               v{health.version}

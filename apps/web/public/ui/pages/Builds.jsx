@@ -235,7 +235,7 @@ window.MCFL = window.MCFL || {};
                   </div>
                 )}
 
-                <BuildLogPanel lines={lines} title={`build-${activeBuild.buildId.slice(0, 8)}.log`} emptyText={t.build.noLogs} />
+                <BuildLogPanel lines={lines} title={`build-${activeBuild.buildId.slice(0, 8)}.log`} emptyText={t.build.noLogs} t={t} />
               </>
             ) : project ? (
               <EmptyState icon="terminal" title={t.build.noBuilds} description={t.build.ephemeralNote} />

@@ -12,7 +12,7 @@ window.MCFL = window.MCFL || {};
     return "";
   }
 
-  function BuildLogPanel({ lines = [], autoScroll = true, title, emptyText }) {
+  function BuildLogPanel({ lines = [], autoScroll = true, title, emptyText, t }) {
     const ref = useRef(null);
     const [copied, setCopied] = useState(false);
 
@@ -46,13 +46,13 @@ window.MCFL = window.MCFL || {};
           <div className="flex items-center gap-2 text-2xs uppercase tracking-wider text-tx2 font-semibold">
             <Icon name="terminal" className="w-3.5 h-3.5" />
             <span>{title || "build.log"}</span>
-            <span className={cx.j("text-tx3", cx.mono)}>· {lines.length} lines</span>
+            <span className={cx.j("text-tx3", cx.mono)}>· {lines.length} {t?.common?.linesUnit || "lines"}</span>
           </div>
           <div className="flex items-center gap-1">
-            <button type="button" onClick={copyAll} className={cx.btnIcon} title="Copy">
+            <button type="button" onClick={copyAll} className={cx.btnIcon} title={t?.common?.copy || "Copy"}>
               <Icon name="copy" className="w-3.5 h-3.5" />
             </button>
-            <button type="button" onClick={downloadAll} className={cx.btnIcon} title="Download">
+            <button type="button" onClick={downloadAll} className={cx.btnIcon} title={t?.common?.download || "Download"}>
               <Icon name="download" className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -72,7 +72,7 @@ window.MCFL = window.MCFL || {};
           )}
         </div>
         {copied && (
-          <div className="px-3 py-1 text-2xs text-mc bg-mc/5 border-t border-border">Copied</div>
+          <div className="px-3 py-1 text-2xs text-mc bg-mc/5 border-t border-border">{t?.common?.copied || "Copied"}</div>
         )}
       </div>
     );

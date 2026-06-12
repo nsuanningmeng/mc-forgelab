@@ -15,6 +15,7 @@ window.MCFL = window.MCFL || {};
     const [health, setHealth] = useState(null);
     const [storeState, setStoreState] = useState(Store.getState());
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [providerOk, setProviderOk] = useState(false);
 
     useEffect(() => {
       theme.setTheme(activeTheme);
@@ -26,6 +27,9 @@ window.MCFL = window.MCFL || {};
 
     useEffect(() => {
       fetch('/api/health').then((r) => r.ok ? r.json() : null).then(setHealth).catch(() => setHealth(null));
+      api.providers()
+        .then(ps => setProviderOk(Array.isArray(ps) && ps.some(p => p.enabled)))
+        .catch(() => setProviderOk(false));
     }, []);
 
     const handleSetLang = (l) => {
@@ -124,6 +128,7 @@ window.MCFL = window.MCFL || {};
             lang={lang}
             onToggleLang={() => handleSetLang(lang === 'zh' ? 'en' : 'zh')}
             health={health}
+            providerOk={providerOk}
           />
 
           {health && health.persistent === false && (

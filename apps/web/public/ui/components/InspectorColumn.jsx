@@ -228,6 +228,7 @@ window.MCFL = window.MCFL || {};
                       lines={buildLogs}
                       title={currentBuild ? `build-${(currentBuild.buildId || currentBuild.id || '').slice(0,8)}.log` : "build.log"}
                       emptyText={t.ws?.noBuildLogs || "No logs available. Start a build to see output."}
+                      t={t}
                     />
                   </div>
                 </div>

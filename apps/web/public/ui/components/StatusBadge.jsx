@@ -6,7 +6,7 @@ window.MCFL = window.MCFL || {};
   // variant: success | info | warn | danger | neutral | planned
   function StatusBadge({ variant = "neutral", label, dot = true, "data-testid": testId = "status-badge" }) {
     return (
-      <span data-testid={testId} className={cx.j(cx.badges[variant] || cx.badges.neutral, "status-badge")}>
+      <span data-testid={testId} className={cx.j(cx.badges[variant] || cx.badges.neutral, "status-badge", "whitespace-nowrap")}>
         {dot && (
           <span
             className="inline-block w-1.5 h-1.5 rounded-full"

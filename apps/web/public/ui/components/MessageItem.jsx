@@ -2,7 +2,7 @@ window.MCFL = window.MCFL || {};
 (function () {
   const { MarkdownRenderer, cx, Icon } = window.MCFL;
 
-  function FileCards({ files }) {
+  function FileCards({ files, t }) {
     const { useState } = React;
     const [expanded, setExpanded] = useState({});
 
@@ -14,7 +14,7 @@ window.MCFL = window.MCFL || {};
       <div className="space-y-1.5">
         <div className="flex items-center gap-2 text-tx2 text-xs mb-2">
           <Icon name="file" className="w-3 h-3" />
-          <span>{files.length} file{files.length > 1 ? 's' : ''} generated</span>
+          <span>{(t?.ws?.filesGenerated || "{n} files generated").replace('{n}', files.length)}</span>
         </div>
         {files.map((f, idx) => (
           <div key={idx} className="border border-border/50 rounded-lg overflow-hidden bg-bg/50">
@@ -133,7 +133,7 @@ window.MCFL = window.MCFL || {};
     );
   }
 
-  function MessageItem({ message, isStreaming }) {
+  function MessageItem({ message, isStreaming, t }) {
     const { useState } = React;
     const [thinkingExpanded, setThinkingExpanded] = useState(false);
     const isUser = message.role === 'user';
@@ -157,21 +157,22 @@ window.MCFL = window.MCFL || {};
             )}
 
             {message.type === 'files' ? (
-              <FileCards files={message.content} />
+              <FileCards files={message.content} t={t} />
             ) : message.type === 'patch' ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-tx2 text-xs mb-2">
                   <Icon name="file" className="w-3 h-3" />
-                  <span>Patch suggested</span>
+                  <span>{t?.ws?.patchSuggested || "Patch suggested"}</span>
                 </div>
                 <MarkdownRenderer content={message.content} />
-                <div className="flex gap-2 mt-3">
-                  <button className={cx.btnPrimary}>Approve</button>
-                  <button className={cx.btnSecondary}>Review</button>
-                </div>
               </div>
             ) : message.type === 'error' ? (
               <div className="text-danger flex items-start gap-2 px-4 py-3">
+                <Icon name="info" className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{message.content}</span>
+              </div>
+            ) : message.type === 'warning' ? (
+              <div className="text-warn flex items-start gap-2 px-4 py-3">
                 <Icon name="info" className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>{message.content}</span>
               </div>
@@ -186,7 +187,7 @@ window.MCFL = window.MCFL || {};
                       aria-controls="thinking-panel"
                     >
                       <Icon name="chevronR" className={cx.j("w-3 h-3 transition-transform", thinkingExpanded && "rotate-90")} />
-                      <span>{(typeof localStorage !== 'undefined' && localStorage.getItem('mcfl.lang')) === 'en' ? 'View thinking...' : '查看思考过程...'}</span>
+                      <span>{t?.ws?.viewThinking || ((typeof localStorage !== 'undefined' && localStorage.getItem('mcfl.lang')) === 'en' ? 'View thinking...' : '查看思考过程...')}</span>
                     </button>
                     {thinkingExpanded && (
                       <div id="thinking-panel" className="mt-1.5 p-3 rounded-lg bg-bg-log/50 border border-border/30 max-h-96 overflow-y-auto text-sm">

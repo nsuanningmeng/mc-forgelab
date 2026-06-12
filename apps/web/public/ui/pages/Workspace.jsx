@@ -260,7 +260,7 @@ window.MCFL = window.MCFL || {};
             </div>
             <div>
               <div className={cx.sectionTitle}>{t.ws.buildLog}</div>
-              <BuildLogPanel lines={logs} title="workspace.log" />
+              <BuildLogPanel lines={logs} title="workspace.log" t={t} />
             </div>
           </aside>
         </div>

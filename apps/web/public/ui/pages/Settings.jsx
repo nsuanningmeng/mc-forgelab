@@ -176,15 +176,15 @@ window.MCFL = window.MCFL || {};
       const bytes = Number(wsDraft.maxArtifactStorageBytes) * 1024 * 1024 * 1024;
       const days = Number(wsDraft.artifactRetentionDays);
       if (!wsDraft.workspacePath.trim()) {
-        setError("Workspace path cannot be empty");
+        setError(t.settings.workspace?.errPathEmpty || "Workspace path cannot be empty");
         return;
       }
       if (!Number.isFinite(bytes) || bytes < 0) {
-        setError("Storage quota must be a non-negative number (GB)");
+        setError(t.settings.workspace?.errQuota || "Storage quota must be a non-negative number (GB)");
         return;
       }
       if (!Number.isFinite(days) || days < 1) {
-        setError("Retention days must be at least 1");
+        setError(t.settings.workspace?.errRetention || "Retention days must be at least 1");
         return;
       }
       setBusy('workspace');
@@ -343,7 +343,7 @@ window.MCFL = window.MCFL || {};
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="text-xs text-tx3 mb-1 block">{t.settings.workspace?.retention || "Artifact Retention"} (days)</label>
+                    <label className="text-xs text-tx3 mb-1 block">{t.settings.workspace?.retention || "Artifact Retention"} ({t.settings.workspace?.daysUnit || "days"})</label>
                     <input
                       type="number"
                       min="1"
@@ -362,9 +362,9 @@ window.MCFL = window.MCFL || {};
               </div>
             ) : (
               <div className="flex flex-col gap-2">
-                <div className="flex justify-between">
-                  <span>{t.settings.workspace?.defaultPath || "Default Path"}</span>
-                  <span className={cx.mono}>{workspaceSettings.workspacePath || "—"}</span>
+                <div className="flex justify-between gap-4">
+                  <span className="shrink-0">{t.settings.workspace?.defaultPath || "Default Path"}</span>
+                  <span className={cx.j(cx.mono, "text-right break-all min-w-0")}>{workspaceSettings.workspacePath || "—"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>{t.settings.workspace?.quota || "Storage Quota"}</span>
@@ -375,7 +375,7 @@ window.MCFL = window.MCFL || {};
                 <div className="flex justify-between">
                   <span>{t.settings.workspace?.retention || "Artifact Retention"}</span>
                   <span>{workspaceSettings.artifactRetentionDays
-                    ? `${workspaceSettings.artifactRetentionDays} days`
+                    ? `${workspaceSettings.artifactRetentionDays} ${t.settings.workspace?.daysUnit || "days"}`
                     : "—"}</span>
                 </div>
                 <div className="flex justify-end mt-1">
@@ -415,8 +415,8 @@ window.MCFL = window.MCFL || {};
                           className={cx.j(cx.input, "flex-1")}
                           autoFocus
                         />
-                        <button onClick={() => handleRotateKey(p)} disabled={busy === p.id} className={cx.btnPrimary}>{busy === p.id ? "Saving..." : "Save"}</button>
-                        <button onClick={() => { setRotatingProvider(null); setNewApiKey(''); }} className={cx.btnGhost}>Cancel</button>
+                        <button onClick={() => handleRotateKey(p)} disabled={busy === p.id} className={cx.btnPrimary}>{busy === p.id ? (t.common?.saving || "Saving...") : (t.common?.save || "Save")}</button>
+                        <button onClick={() => { setRotatingProvider(null); setNewApiKey(''); }} className={cx.btnGhost}>{t.common?.cancel || "Cancel"}</button>
                       </div>
                     )}
                   </div>

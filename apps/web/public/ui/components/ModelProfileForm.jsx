@@ -53,7 +53,7 @@ window.MCFL = window.MCFL || {};
               className={cx.input} 
               value={form.name} 
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))} 
-              placeholder="e.g. Fast Coding"
+              placeholder={tf.fields.namePlaceholder || "e.g. Fast Coding"}
             />
           </div>
 
@@ -70,7 +70,7 @@ window.MCFL = window.MCFL || {};
           <div className="space-y-1.5">
             <label className={cx.label}>{tf.fields.provider}</label>
             {noProviders ? (
-              <div className="text-2xs text-danger py-2 italic">No providers configured</div>
+              <div className="text-2xs text-danger py-2 italic">{t.common?.noProviders || "No providers configured"}</div>
             ) : (
               <CustomSelect
                 data-testid="profile-providerId"

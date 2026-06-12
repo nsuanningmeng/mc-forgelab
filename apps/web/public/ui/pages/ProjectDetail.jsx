@@ -1,13 +1,18 @@
 window.MCFL = window.MCFL || {};
 (function () {
   const { useState, useEffect } = React;
-  const { cx, api, Icon, StatusBadge, ArtifactTable } = window.MCFL;
+  const { cx, api, Icon, StatusBadge, ArtifactTable, MCVersionPicker, CustomSelect } = window.MCFL;
 
   function ProjectDetail({ t, project: initialProject, onBack, onSelectWorkspace, lang }) {
     const [project, setProject] = useState(initialProject);
     const [builds, setBuilds] = useState([]);
     const [artifacts, setArtifacts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [targets, setTargets] = useState([]);
+    const [editing, setEditing] = useState(false);
+    const [editForm, setEditForm] = useState({ name: '', target: '', mcVersion: '', packageName: '' });
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState(null);
 
     useEffect(() => {
       setLoading(true);
@@ -20,7 +25,43 @@ window.MCFL = window.MCFL || {};
         setBuilds(b.slice(0, 5));
         setArtifacts(a.slice(0, 5));
       }).finally(() => setLoading(false));
+      api.targets().then(setTargets).catch(() => {});
     }, [initialProject.id]);
+
+    const startEdit = () => {
+      const cur = project || {};
+      setEditForm({
+        name: cur.name || '',
+        target: cur.target_id || '',
+        mcVersion: cur.minecraft_version || '',
+        packageName: cur.package_name || ''
+      });
+      setSaveError(null);
+      setEditing(true);
+    };
+
+    const saveEdit = async (e) => {
+      e.preventDefault();
+      setSaving(true);
+      setSaveError(null);
+      try {
+        // Omit the MC version when the picker was cleared by a target switch
+        // and the user did not choose a new one — keep the stored version.
+        const payload = {
+          name: editForm.name,
+          targetId: editForm.target,
+          packageName: editForm.packageName
+        };
+        if (editForm.mcVersion) payload.minecraftVersion = editForm.mcVersion;
+        const updated = await api.updateProject(initialProject.id, payload);
+        setProject(updated);
+        setEditing(false);
+      } catch (err) {
+        setSaveError(err.message);
+      } finally {
+        setSaving(false);
+      }
+    };
 
     // Backend GET /api/projects/:id returns SQLite rows (snake_case) augmented
     // with capabilities + warnings. The `target` key is an OBJECT (capabilities
@@ -59,12 +100,58 @@ window.MCFL = window.MCFL || {};
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button data-testid="project-edit-btn" onClick={startEdit} className={cx.btnSecondary}>
+              {t.common.edit}
+            </button>
             <button onClick={() => onSelectWorkspace && onSelectWorkspace(project)} className={cx.btnPrimary}>
               <Icon name="spark" className="w-4 h-4" />
               {t.proj.openWorkspace}
             </button>
           </div>
         </header>
+
+        {editing && (
+          <form onSubmit={saveEdit} className={cx.j(cx.card, "p-4 space-y-4")} data-testid="project-edit-form">
+            <div className="text-sm font-semibold text-tx1">{t.proj.editProject}</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className={cx.label}>{t.proj.name}</label>
+                <input data-testid="edit-project-name" required className={cx.input} value={editForm.name}
+                  onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <label className={cx.label}>{t.proj.packageName}</label>
+                <input data-testid="edit-project-packageName" required className={cx.input} value={editForm.packageName}
+                  onChange={e => setEditForm(f => ({ ...f, packageName: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <label className={cx.label}>{t.proj.target}</label>
+                <CustomSelect
+                  data-testid="edit-project-targetId"
+                  value={editForm.target}
+                  onChange={val => setEditForm(f => ({ ...f, target: val, mcVersion: '' }))}
+                  options={targets.map(tg => ({ value: tg.id, label: tg.displayName || tg.name || tg.id }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className={cx.label}>{t.proj.mcVersion}</label>
+                <MCVersionPicker
+                  t={t}
+                  targetId={editForm.target}
+                  value={editForm.mcVersion}
+                  onChange={val => setEditForm(f => ({ ...f, mcVersion: val }))}
+                />
+              </div>
+            </div>
+            {saveError && <div className="text-danger text-xs">{saveError}</div>}
+            <div className="flex items-center gap-2 justify-end">
+              <button type="button" className={cx.btnSecondary} onClick={() => setEditing(false)}>{t.proj.cancel}</button>
+              <button type="submit" data-testid="edit-project-save-btn" className={cx.btnPrimary} disabled={saving}>
+                {saving ? t.common.saving : t.common.save}
+              </button>
+            </div>
+          </form>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
