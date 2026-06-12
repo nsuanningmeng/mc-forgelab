@@ -32,21 +32,21 @@ export interface BuildOptions {
   readonly signal?: AbortSignal;
 }
 
-async function resolveGradleBuildTool(projectPath: string, onLog: (line: string) => void) {
+async function resolveGradleBuildTool(projectPath: string, onLog: (line: string) => void, signal?: AbortSignal) {
   try {
     return await resolveGradleWrapper(projectPath);
   } catch {
     onLog("[toolchain] Gradle wrapper not found, bootstrapping...");
-    return bootstrapGradleWrapper(projectPath, undefined, { onProgress: (msg) => onLog(`[toolchain] ${msg}`) });
+    return bootstrapGradleWrapper(projectPath, undefined, { onProgress: (msg) => onLog(`[toolchain] ${msg}`), signal });
   }
 }
 
-async function resolveMavenBuildTool(projectPath: string, onLog: (line: string) => void) {
+async function resolveMavenBuildTool(projectPath: string, onLog: (line: string) => void, signal?: AbortSignal) {
   try {
     return await resolveMavenWrapper(projectPath);
   } catch {
     onLog("[toolchain] Maven wrapper not found, bootstrapping...");
-    return bootstrapMavenWrapper(projectPath, undefined, { onProgress: (msg) => onLog(`[toolchain] ${msg}`) });
+    return bootstrapMavenWrapper(projectPath, undefined, { onProgress: (msg) => onLog(`[toolchain] ${msg}`), signal });
   }
 }
 
@@ -80,12 +80,12 @@ export async function runBuild(
   if (!rel || rel.startsWith("..") || isAbsolute(rel)) throw new Error("projectPath is outside workspaceRoot");
 
   const javaVersion = opts.javaVersion ?? 17;
-  const java = await resolveJavaWithAutoDownload(javaVersion, { onProgress: (msg) => onLog(`[toolchain] ${msg}`) });
+  const java = await resolveJavaWithAutoDownload(javaVersion, { onProgress: (msg) => onLog(`[toolchain] ${msg}`), signal: opts.signal });
 
   const buildTool = opts.buildTool ?? "gradle";
   const tool = buildTool === "maven"
-    ? await resolveMavenBuildTool(opts.projectPath, onLog)
-    : await resolveGradleBuildTool(opts.projectPath, onLog);
+    ? await resolveMavenBuildTool(opts.projectPath, onLog, opts.signal)
+    : await resolveGradleBuildTool(opts.projectPath, onLog, opts.signal);
   const buildArgs = buildTool === "maven"
     ? ["package", "-B", "-e"]
     : ["build", "--no-daemon", "--stacktrace"];

@@ -96,23 +96,25 @@ function renderPaperPlugin(spec: ProjectSpec): RenderedFile[] {
     { relativePath: "build.gradle.kts", content: buildGradle(pkg, mc, java, paperApiVersion) },
     { relativePath: "settings.gradle.kts", content: `rootProject.name = "${escKotlin(spec.slug ?? spec.name)}"\n` },
     { relativePath: "gradle/wrapper/gradle-wrapper.properties", content: gradleWrapper(gradleVersion) },
-    { relativePath: "src/main/resources/plugin.yml", content: pluginYml(pluginName, mainClass, version, desc, author, f) },
+    { relativePath: "src/main/resources/plugin.yml", content: pluginYml(pluginName, mainClass, version, desc, author, f, paperApiVersion) },
     { relativePath: "src/main/resources/config.yml", content: f.enableConfig ? defaultConfig() : "" },
     { relativePath: `src/main/java/${pkg.replace(/\./g, "/")}/${mainSimple}.java`, content: mainClassJava(pkg, mainSimple, f) },
-    { relativePath: "README.md", content: `# ${pluginName}\n\n${desc}\n\n## 安装\n�?jar 放入 plugins/ 目录并重启服务器。\n` }
+    { relativePath: "README.md", content: `# ${pluginName}\n\n${desc}\n\n## 安装\n将 jar 放入 plugins/ 目录并重启服务器。\n` }
   ].filter((f) => f.content !== "");
 }
 
 function buildGradle(pkg: string, mc: string, java: number, paperApi: string): string {
+  // Plain paper-api instead of paperweight-userdev: paperweight is only
+  // needed for NMS access and requires a resolvable dev bundle plus a local
+  // Gradle toolchain, both of which break generated starter plugins.
+  // options.release compiles against the requested Java level using the JDK
+  // that runs Gradle (resolved by the toolchain manager).
   return `plugins {
     java
-    id("io.papermc.paperweight.userdev") version "1.7.1"
 }
 
-group = "${pkg}"
+group = "${safeId(pkg)}"
 version = "1.0.0"
-
-java { toolchain.languageVersion.set(JavaLanguageVersion.of(${java})) }
 
 repositories {
     mavenCentral()
@@ -120,10 +122,13 @@ repositories {
 }
 
 dependencies {
-    paperweight.paperDevBundle("${mc}-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:${mc}-R0.1-SNAPSHOT")
 }
 
-tasks.reobfJar { outputJar.set(layout.buildDirectory.file("libs/\${project.name}-\${project.version}.jar")) }
+tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
+    options.release.set(${java})
+}
 `;
 }
 
@@ -136,8 +141,8 @@ zipStorePath=wrapper/dists
 `;
 }
 
-function pluginYml(name: string, main: string, version: string, desc: string, author: string, f: NonNullable<import("@mc-forgelab/project-model").ProjectSpec["features"]>): string {
-  const lines = [`name: ${name}`, `version: '${version}'`, `main: ${main}`, `api-version: '1.20'`, `description: ${desc}`, `author: ${author}`];
+function pluginYml(name: string, main: string, version: string, desc: string, author: string, f: NonNullable<import("@mc-forgelab/project-model").ProjectSpec["features"]>, apiVersion = "1.20"): string {
+  const lines = [`name: ${name}`, `version: '${version}'`, `main: ${main}`, `api-version: '${apiVersion}'`, `description: ${desc}`, `author: ${author}`];
   if (f.enableCommand) lines.push("commands:\n  example:\n    description: Example command\n    usage: /<command>");
   if (f.enablePermissions) lines.push("permissions:\n  example.use:\n    description: Use example\n    default: op");
   return lines.join("\n") + "\n";

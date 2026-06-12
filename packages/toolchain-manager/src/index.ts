@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, rmSync, renameSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { platform as osPlatform, arch as osArch, homedir } from "node:os";
 import { execSync, spawnSync } from "node:child_process";
 import { request as httpRequest } from "node:http";
@@ -41,6 +41,10 @@ interface ExecResult {
 }
 
 function toolchainsDir(): string {
+  // Honor the documented MC_FORGELAB_TOOLCHAINS override so tests/e2e runs
+  // never install JDKs into the real per-user toolchain directory.
+  const override = process.env.MC_FORGELAB_TOOLCHAINS;
+  if (override && override.trim().length > 0) return override;
   const p = osPlatform();
   const h = homedir();
   if (p === "win32") return join(process.env.LOCALAPPDATA ?? join(h, "AppData", "Local"), "MC-ForgeLab", "toolchains");
@@ -174,10 +178,20 @@ export async function resolveJava(version: 8 | 11 | 17 | 21): Promise<ResolvedTo
     const javaHome = join(toolchainsDir(), `jdk-${version}`);
     return { executable: managed, env: { JAVA_HOME: javaHome } };
   }
-  // Fall back to system java
+  // Fall back to system java only when it is a JDK of the requested major
+  // version. Accepting any java here skips the Adoptium download and later
+  // breaks Gradle toolchain resolution with a confusing "no matching
+  // toolchains" error (wrong major, or a JRE without javac).
   const sysJava = osPlatform() === "win32" ? "java.exe" : "java";
   const ver = tryExec(sysJava, ["-version"]);
-  if (ver) return { executable: sysJava, env: {} };
+  if (ver && parseJavaMajor(ver) === version) {
+    const javaPath = commandPath(sysJava);
+    const binDir = dirname(javaPath);
+    const javacName = osPlatform() === "win32" ? "javac.exe" : "javac";
+    if (javaPath !== sysJava && existsSync(join(binDir, javacName))) {
+      return { executable: javaPath, env: { JAVA_HOME: dirname(binDir) } };
+    }
+  }
   throw new Error(`Java ${version} not found. Install via: mcforgelab toolchain install java --version ${version}`);
 }
 
@@ -212,8 +226,13 @@ export async function resolveMavenWrapper(projectDir: string): Promise<ResolvedT
   throw new Error("Maven wrapper not found and no system mvn available.");
 }
 
+interface AdoptiumPackage { link: string; name: string; size: number }
+
+// /v3/assets/latest nests the package under `binary`; keep the flat shape
+// as a fallback in case the API ever returns it directly.
 interface AdoptiumBinary {
-  package: { link: string; name: string; size: number };
+  binary?: { package?: AdoptiumPackage };
+  package?: AdoptiumPackage;
 }
 
 function readProxyConfig(proxy?: ProxyConfig): ProxyConfig {
@@ -336,20 +355,31 @@ async function fetchJson<T>(url: string, proxy?: ProxyConfig): Promise<T> {
   });
 }
 
-async function downloadFile(url: string, dest: string, proxy?: ProxyConfig): Promise<void> {
+async function downloadFile(url: string, dest: string, proxy?: ProxyConfig, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error("Download canceled."));
+      return;
+    }
+    let currentRequest: ReturnType<typeof httpsGet> | null = null;
+    const onAbort = () => { currentRequest?.destroy(new Error("Download canceled.")); };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    const cleanup = () => signal?.removeEventListener("abort", onAbort);
+    const settleResolve = () => { cleanup(); resolve(); };
+    const settleReject = (err: unknown) => { cleanup(); reject(err); };
     const follow = (u: string) => {
-      httpsGet(u, { agent: getProxyAgent(u, proxy) }, (res) => {
+      currentRequest = httpsGet(u, { agent: getProxyAgent(u, proxy) }, (res) => {
         if (res.statusCode === 301 || res.statusCode === 302) {
           follow(new URL(res.headers.location!, u).toString());
           return;
         }
         if (res.statusCode !== 200) {
-          reject(new Error(`Download failed: HTTP ${res.statusCode}`));
+          settleReject(new Error(`Download failed: HTTP ${res.statusCode}`));
           return;
         }
-        pipeline(res, createWriteStream(dest)).then(resolve, reject);
-      }).on("error", reject);
+        pipeline(res, createWriteStream(dest), { signal }).then(settleResolve, settleReject);
+      });
+      currentRequest.on("error", settleReject);
     };
     follow(url);
   });
@@ -369,6 +399,8 @@ function getAdoptiumArch(): string {
 export interface DownloadJdkOptions {
   readonly onProgress?: (message: string) => void;
   readonly proxy?: ProxyConfig;
+  /** Aborting cancels in-flight toolchain downloads. */
+  readonly signal?: AbortSignal;
 }
 
 /**
@@ -391,17 +423,17 @@ export async function downloadJdk(version: 8 | 11 | 17 | 21, opts: DownloadJdkOp
 
   log(`Fetching Adoptium JDK ${version} metadata...`);
   const assets = await fetchJson<AdoptiumBinary[]>(api, opts.proxy);
-  if (!assets.length || !assets[0]?.package?.link) {
+  const pkg = assets[0]?.binary?.package ?? assets[0]?.package;
+  if (!pkg?.link) {
     throw new Error(`No Adoptium JDK ${version} found for ${os}/${arch}`);
   }
-
-  const pkg = assets[0].package;
   const ext = os === "windows" ? "zip" : "tar.gz";
   const archivePath = join(toolchainsDir(), `jdk-${version}-download.${ext}`);
 
   mkdirSync(toolchainsDir(), { recursive: true });
   log(`Downloading JDK ${version} (${(pkg.size / 1024 / 1024).toFixed(0)} MB)...`);
-  await downloadFile(pkg.link, archivePath, opts.proxy);
+  await downloadFile(pkg.link, archivePath, opts.proxy, opts.signal);
+  if (opts.signal?.aborted) throw new Error("Download canceled.");
 
   log("Extracting...");
   const extractDir = join(toolchainsDir(), `jdk-${version}-tmp`);
@@ -462,11 +494,14 @@ export async function bootstrapGradleWrapper(projectDir: string, version = "8.8"
   const wrapperProps = join(projectDir, "gradle", "wrapper", "gradle-wrapper.properties");
   mkdirSync(join(projectDir, "gradle", "wrapper"), { recursive: true });
 
-  // Download gradle-wrapper.jar from official Gradle GitHub
+  // Download gradle-wrapper.jar from official Gradle GitHub.
+  // Gradle GitHub tags are always three-part (v8.8.0), while distribution
+  // versions drop the trailing .0 (8.8) — normalize or the URL 404s.
   if (!existsSync(wrapperJar)) {
     log(`Downloading Gradle ${version} wrapper...`);
-    const jarUrl = `https://raw.githubusercontent.com/gradle/gradle/v${version}/gradle/wrapper/gradle-wrapper.jar`;
-    await downloadFile(jarUrl, wrapperJar, opts.proxy);
+    const tagVersion = /^\d+\.\d+$/.test(version) ? `${version}.0` : version;
+    const jarUrl = `https://raw.githubusercontent.com/gradle/gradle/v${tagVersion}/gradle/wrapper/gradle-wrapper.jar`;
+    await downloadFile(jarUrl, wrapperJar, opts.proxy, opts.signal);
   }
 
   // Generate gradle-wrapper.properties
@@ -516,7 +551,7 @@ export async function bootstrapMavenWrapper(projectDir: string, version = "3.9.9
   mkdirSync(wrapperDir, { recursive: true });
   if (!existsSync(wrapperJar)) {
     log("Downloading Maven wrapper...");
-    await downloadFile(MAVEN_WRAPPER_JAR_URL, wrapperJar, opts.proxy);
+    await downloadFile(MAVEN_WRAPPER_JAR_URL, wrapperJar, opts.proxy, opts.signal);
   }
   const { writeFileSync: writeFile, chmodSync } = await import("node:fs");
   if (!existsSync(wrapperProps)) {
