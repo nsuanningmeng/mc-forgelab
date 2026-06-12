@@ -85,8 +85,10 @@ If a new flow needs a new testid, add it in the same PR and update this list.
 4. **Build duration** — even an empty Gradle build can take a few seconds
    before SSE flips status. Cancel-build asserts use a 15 s poll timeout to
    absorb CI variability.
-5. **Default port 3000** — `playwright.config.ts` pins the dev server to
-   `MC_FORGELAB_PORT=3000`. If something else is already on 3000, kill it or
-   adjust `webServer.env` and `baseURL` in lock-step.
+5. **Dedicated port 3344, never reused** — `playwright.config.ts` pins the
+   e2e server to `MC_FORGELAB_PORT=3344` with `reuseExistingServer: false`.
+   Port 3000 is reserved for the installed desktop app / local dev with a
+   PERSISTENT database; e2e must never attach to it. `global-setup.ts`
+   additionally aborts the run if `/api/health` reports `persistent: true`.
 6. **Theme uses `data-theme` attribute, NOT a class** — see
    `apps/web/public/ui/lib/theme.js`. Assertions must use `toHaveAttribute`.
