@@ -181,6 +181,24 @@ function isToolchainUnavailableError(error: unknown): boolean {
   return /toolchain|jdk|java|gradle|JAVA_HOME|executable/i.test(message);
 }
 
+/**
+ * Environment failures (download 404s, DNS, refused connections, missing
+ * toolchain or provider) cannot be fixed by patching project code — retrying
+ * the auto-fix loop on them burns rounds and tokens on an identical failure.
+ */
+function isUnrecoverableAutoFixError(message: string): boolean {
+  return /Download failed: HTTP \d+|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|certificate|No usable AI provider|No Adoptium JDK|Install via: mcforgelab toolchain/i.test(message);
+}
+
+function unrecoverableBuildEnvironmentError(buildResult: WorkflowBuildResult | undefined): string | null {
+  if (!buildResult || buildResult.status !== "failed") return null;
+  const summary = buildResult.errorSummary ?? "";
+  if (buildResult.errorCode === "TOOLCHAIN_UNAVAILABLE" || isUnrecoverableAutoFixError(summary)) {
+    return summary || "Build toolchain unavailable.";
+  }
+  return null;
+}
+
 function firstNonEmptyInput(inputs: Record<string, string>): string {
   return Object.values(inputs).find((value) => value.trim().length > 0) ?? "";
 }
@@ -509,6 +527,12 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
       return { status: "skipped", outputSummary: "Skipped because build did not fail.", tokensIn: 0, tokensOut: 0 };
     }
 
+    const initialEnvError = unrecoverableBuildEnvironmentError(workflowContext.buildResult);
+    if (initialEnvError) {
+      toolContext.emitLog("Auto-fix skipped: build failure is environmental (toolchain/network), not fixable by patching code.");
+      return { status: "failed", outputSummary: `Auto-fix aborted (environment error, not code): ${initialEnvError}`, tokensIn: 0, tokensOut: 0 };
+    }
+
     const projectId = workflowContext.projectId;
     const maxRounds = Math.min(MAX_AUTO_FIX_ROUNDS, Math.max(1, step.maxRounds ?? 5));
     const maxTokens = deps.config?.maxAutoFixTokens ?? DEFAULT_MAX_AUTO_FIX_TOKENS;
@@ -573,6 +597,11 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         if (buildResult.status === "success") {
           return { status: "success", outputSummary: `Auto-fix succeeded after ${round} round(s).`, tokensIn, tokensOut };
         }
+        const envError = unrecoverableBuildEnvironmentError(buildResult);
+        if (envError) {
+          toolContext.emitLog("Auto-fix aborted: build failure is environmental (toolchain/network), not fixable by patching code.");
+          return { status: "failed", outputSummary: `Auto-fix aborted (environment error, not code): ${envError}`, tokensIn, tokensOut };
+        }
         toolContext.emitLog(`Auto-fix round ${round} build status: ${buildResult.status}.`);
       } catch (error) {
         if (toolContext.signal.aborted) throw error;
@@ -583,6 +612,10 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
         }
         lastError = message;
         toolContext.emitLog(`Auto-fix round ${round} failed: ${message}`);
+        if (!isPatchApplyFailure(error) && isUnrecoverableAutoFixError(message)) {
+          toolContext.emitLog("Auto-fix aborted: failure is environmental (toolchain/network/provider), not fixable by patching code.");
+          return { status: "failed", outputSummary: `Auto-fix aborted (environment error, not code): ${message}`, tokensIn, tokensOut };
+        }
       }
     }
 
@@ -648,6 +681,16 @@ export function createWorkflowRuntime(deps: RuntimeDeps): WorkflowRuntime {
   function resolveChatAdapter(step: WorkflowStepDef, runProviderId?: string | null, runModel?: string | null): ResolvedChatAdapter {
     const resolved = providerResolver.resolve(step, runProviderId, runModel);
     if (!resolved) {
+      // Providers exist but none could be resolved (e.g. all disabled).
+      // Fail with an actionable message instead of silently producing
+      // canned fake-provider output that looks like a real AI response.
+      const configuredProviders = deps.providers?.listProviders().length ?? 0;
+      if (configuredProviders > 0) {
+        throw new Error(
+          "No usable AI provider: providers are configured but none is enabled or matches this run. " +
+          "Enable a provider in Settings → AI Providers, then retry."
+        );
+      }
       return {
         adapter: fakeProvider,
         providerId: "fake",

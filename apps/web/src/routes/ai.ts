@@ -356,6 +356,12 @@ export async function registerAIRoutes(app: FastifyInstance, ctx: AppContext) {
           timeoutMs: body.timeoutMs,
           enabled: body.enabled !== false,
         });
+        // Seed role profiles for roles that have none yet, otherwise the
+        // workflow engine has no model bound to any role and silently runs
+        // the fake provider. Idempotent: existing role profiles are kept.
+        if (created.enabled) {
+          ctx.providers.ensureDefaultProfiles(created.id, created.defaultModel);
+        }
         ctx.auditor.log({
           eventType: "provider.create",
           entityType: "provider",

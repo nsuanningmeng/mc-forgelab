@@ -154,7 +154,68 @@ function normalizeToPatch(raw: unknown): unknown {
       }))
     };
   }
+  // Models often omit type/summary even when operations are well-formed —
+  // default them instead of rejecting the whole patch.
+  if (typeof raw === "object" && raw !== null && Array.isArray((raw as { operations?: unknown }).operations)) {
+    const obj = raw as Record<string, unknown>;
+    return {
+      ...obj,
+      type: "file_patch",
+      summary: typeof obj.summary === "string" ? obj.summary : "Generated patch"
+    };
+  }
   return raw;
+}
+
+function looksLikePatch(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as { operations?: unknown; files?: unknown; type?: unknown };
+  return Array.isArray(v.operations) || Array.isArray(v.files) || v.type === "file_patch";
+}
+
+function tryParseBalancedObject(text: string, start: number): unknown {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text.charAt(i);
+    if (escaped) { escaped = false; continue; }
+    if (inString) {
+      if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        try { return JSON.parse(text.slice(start, i + 1)); } catch { return undefined; }
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Real models wrap the JSON patch in prose or markdown fences instead of
+ * returning bare JSON — extract the patch object from mixed output.
+ */
+export function extractPatchJson(text: string): unknown {
+  const trimmed = text.trim();
+  try { return JSON.parse(trimmed); } catch { /* mixed model output */ }
+  const fence = /```(?:json)?\s*([\s\S]*?)```/g;
+  for (let m = fence.exec(trimmed); m !== null; m = fence.exec(trimmed)) {
+    try {
+      const parsed = JSON.parse((m[1] ?? "").trim()) as unknown;
+      if (looksLikePatch(parsed)) return parsed;
+    } catch { /* try the next fenced block */ }
+  }
+  for (let idx = trimmed.indexOf("{"); idx !== -1; idx = trimmed.indexOf("{", idx + 1)) {
+    const parsed = tryParseBalancedObject(trimmed, idx);
+    if (parsed !== undefined && looksLikePatch(parsed)) return parsed;
+  }
+  throw new Error("Model output does not contain a valid JSON file patch.");
 }
 
 function createWorkflowPatchApplier(): PatchApplier {
@@ -168,7 +229,7 @@ function createWorkflowPatchApplier(): PatchApplier {
       if (patchBytes > MAX_RAW_PATCH_BYTES) {
         return patchApplyError(`Patch payload too large: ${patchBytes} bytes (max ${MAX_RAW_PATCH_BYTES}).`);
       }
-      const raw = JSON.parse(input.patch);
+      const raw = extractPatchJson(input.patch);
       if (options?.signal?.aborted) {
         return patchApplyError("Patch apply aborted.");
       }
@@ -239,6 +300,18 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   applyKnowledgeMigration(storage);
   const artifacts = createArtifactManager(storage);
   const providers = createProviderManager(storage);
+  // One-time backfill for databases created before role profiles were seeded
+  // on provider creation: without any profile, every workflow run silently
+  // fell back to the fake provider even though a real provider was configured.
+  try {
+    if (providers.listProfiles().length === 0) {
+      const firstEnabled = providers.listProviders().find((p) => p.enabled);
+      if (firstEnabled) providers.ensureDefaultProfiles(firstEnabled.id, firstEnabled.defaultModel);
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn(`[mc-forgelab] model profile backfill skipped: ${e instanceof Error ? e.message : String(e)}`);
+  }
   const workflowEngine = createWorkflowEngine(storage);
   workflowEngine.seedBuiltins();
   const buildRunner = createWorkflowBuildRunner(cfg, storage);

@@ -118,6 +118,21 @@ export function createProviderResolver(providers?: ProviderManager): ProviderRes
         };
       }
 
+      // No profile matched and the run did not pin a provider — fall back to
+      // the first enabled provider so a freshly configured provider works
+      // even before any model profiles exist.
+      const fallback = providers.listProviders().find((p) => p.enabled);
+      if (fallback) {
+        const model = runModel?.trim() || fallback.defaultModel;
+        return {
+          adapter: providers.getAdapter(fallback.id),
+          profile: createRuntimeProfile(step, fallback.id, model),
+          profileId: null,
+          providerId: fallback.id,
+          model
+        };
+      }
+
       return null;
     }
   };
